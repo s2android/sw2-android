@@ -64,7 +64,9 @@ fun GamepadOverlay(
     modifier: Modifier = Modifier,
     opacity: Float = 0.75f,
     hapticsEnabled: Boolean = true,
-    onButtonPressed: (String) -> Unit = {}
+    onButtonPressed: (String) -> Unit = {},
+    onLeftStickMoved: (Float, Float) -> Unit = { _, _ -> },
+    onRightStickMoved: (Float, Float) -> Unit = { _, _ -> }
 ) {
     val context = LocalContext.current
 
@@ -95,11 +97,12 @@ fun GamepadOverlay(
             .alpha(opacity)
             .padding(horizontal = 16.dp, vertical = 12.dp)
     ) {
-        // TOP SHOULDER TRIGGERS BAR (L, ZL, -, +, ZR, R)
+        // TOP SHOULDER TRIGGERS BAR (L, ZL, -, +, ZR, R) — placed cleanly below the top action bar
         Row(
             modifier = Modifier
                 .fillMaxWidth()
-                .align(Alignment.TopCenter),
+                .align(Alignment.TopCenter)
+                .padding(top = 56.dp),
             horizontalArrangement = Arrangement.SpaceBetween,
             verticalAlignment = Alignment.CenterVertically
         ) {
@@ -107,8 +110,8 @@ fun GamepadOverlay(
             Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
                 GamepadButton(
                     text = "ZL",
-                    width = 64,
-                    height = 36,
+                    width = 58,
+                    height = 34,
                     tag = "overlay_zl",
                     onPress = {
                         triggerHaptic()
@@ -117,8 +120,8 @@ fun GamepadOverlay(
                 )
                 GamepadButton(
                     text = "L",
-                    width = 54,
-                    height = 36,
+                    width = 50,
+                    height = 34,
                     tag = "overlay_l",
                     onPress = {
                         triggerHaptic()
@@ -129,7 +132,7 @@ fun GamepadOverlay(
 
             // Center System Buttons (Minus, Capture, Home, Plus)
             Row(
-                horizontalArrangement = Arrangement.spacedBy(10.dp),
+                horizontalArrangement = Arrangement.spacedBy(8.dp),
                 verticalAlignment = Alignment.CenterVertically
             ) {
                 IconButtonOverlay(
@@ -170,8 +173,8 @@ fun GamepadOverlay(
             Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
                 GamepadButton(
                     text = "R",
-                    width = 54,
-                    height = 36,
+                    width = 50,
+                    height = 34,
                     tag = "overlay_r",
                     onPress = {
                         triggerHaptic()
@@ -180,8 +183,8 @@ fun GamepadOverlay(
                 )
                 GamepadButton(
                     text = "ZR",
-                    width = 64,
-                    height = 36,
+                    width = 58,
+                    height = 34,
                     tag = "overlay_zr",
                     onPress = {
                         triggerHaptic()
@@ -209,7 +212,9 @@ fun GamepadOverlay(
                 VirtualJoystick(
                     label = "L-Stick",
                     tag = "overlay_joystick_left",
-                    onMoved = { triggerHaptic() }
+                    onMoved = { nx, ny ->
+                        onLeftStickMoved(nx, ny)
+                    }
                 )
 
                 // D-Pad
@@ -238,7 +243,9 @@ fun GamepadOverlay(
                 VirtualJoystick(
                     label = "R-Stick",
                     tag = "overlay_joystick_right",
-                    onMoved = { triggerHaptic() }
+                    onMoved = { nx, ny ->
+                        onRightStickMoved(nx, ny)
+                    }
                 )
             }
         }
@@ -250,7 +257,7 @@ fun VirtualJoystick(
     label: String,
     tag: String,
     maxRadiusPx: Float = 60f,
-    onMoved: () -> Unit = {}
+    onMoved: (Float, Float) -> Unit = { _, _ -> }
 ) {
     var offsetX by remember { mutableFloatStateOf(0f) }
     var offsetY by remember { mutableFloatStateOf(0f) }
@@ -266,10 +273,12 @@ fun VirtualJoystick(
                     onDragEnd = {
                         offsetX = 0f
                         offsetY = 0f
+                        onMoved(0f, 0f)
                     },
                     onDragCancel = {
                         offsetX = 0f
                         offsetY = 0f
+                        onMoved(0f, 0f)
                     },
                     onDrag = { change, dragAmount ->
                         change.consume()
@@ -280,7 +289,10 @@ fun VirtualJoystick(
                         val clampedDist = min(dist, maxRadiusPx)
                         offsetX = clampedDist * cos(angle)
                         offsetY = clampedDist * sin(angle)
-                        onMoved()
+                        onMoved(
+                            (offsetX / maxRadiusPx).coerceIn(-1f, 1f),
+                            (offsetY / maxRadiusPx).coerceIn(-1f, 1f)
+                        )
                     }
                 )
             }
