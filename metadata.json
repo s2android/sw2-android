@@ -1,0 +1,6 @@
+{
+  "name": "Eglantine",
+  "description": "Next-gen Nintendo Switch & Switch 2 (NX2) emulator manager and player featuring GPU driver management, keys and firmware controls, interactive on-screen gamepad, and performance telemetry.",
+  "requestFramePermissions": [],
+  "majorCapabilities": ["MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"]
+}
