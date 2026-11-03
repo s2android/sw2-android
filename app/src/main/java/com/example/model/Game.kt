@@ -18,7 +18,8 @@ data class Game(
     val isFavorite: Boolean = false,
     val description: String = "",
     val isSample: Boolean = false,
-    val uriString: String? = null
+    val uriString: String? = null,
+    val boxArtUrl: String? = null
 ) {
     val programIdHex: String
         get() = if (programId.startsWith("0x", ignoreCase = true)) programId else "0x$programId"

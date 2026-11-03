@@ -143,88 +143,7 @@ class EglantineRepository {
         )
     )
 
-    private val initialGames = listOf(
-        Game(
-            title = "Mario Kart World",
-            programId = "0400C3F00006E000",
-            developer = "Nintendo EPD",
-            version = "1.0.0 (NX2 Build)",
-            fileExtension = "xci",
-            path = "Internal/Switch/MarioKartWorld_NX2.xci",
-            isNx2 = true,
-            isHomebrew = false,
-            sizeMb = 14336,
-            lastPlayedTime = "Yesterday",
-            playtimeMinutes = 145,
-            isFavorite = true,
-            description = "Next-generation Switch 2 flagship racer running on ARMv8.2 architecture with 64-bit 39-bit memory space and dynamic weather tracks.",
-            isSample = true
-        ),
-        Game(
-            title = "Splatoon Raiders",
-            programId = "04005B902517C000",
-            developer = "Nintendo",
-            version = "1.0.0 (NX2 Beta)",
-            fileExtension = "nsp",
-            path = "Internal/Switch/SplatoonRaiders_NX2.nsp",
-            isNx2 = true,
-            isHomebrew = false,
-            sizeMb = 12288,
-            lastPlayedTime = "3 days ago",
-            playtimeMinutes = 68,
-            isFavorite = false,
-            description = "Tactical turf multiplayer running on NX2 Ampere graphics pushbuffers and LSE atomics.",
-            isSample = true
-        ),
-        Game(
-            title = "Super Mario Odyssey",
-            programId = "0100000000010000",
-            developer = "Nintendo",
-            version = "1.3.0",
-            fileExtension = "xci",
-            path = "Internal/Switch/SuperMarioOdyssey.xci",
-            isNx2 = false,
-            isHomebrew = false,
-            sizeMb = 5600,
-            lastPlayedTime = "1 week ago",
-            playtimeMinutes = 420,
-            isFavorite = true,
-            description = "Acclaimed 3D sandbox platformer featuring Mario and Cappy traversing global kingdoms.",
-            isSample = true
-        ),
-        Game(
-            title = "The Legend of Zelda: Tears of the Kingdom",
-            programId = "0100F2C0115B6000",
-            developer = "Nintendo",
-            version = "1.2.1",
-            fileExtension = "nsp",
-            path = "Internal/Switch/ZeldaTOTK.nsp",
-            isNx2 = false,
-            isHomebrew = false,
-            sizeMb = 16384,
-            lastPlayedTime = "2 weeks ago",
-            playtimeMinutes = 890,
-            isFavorite = true,
-            description = "Epic open-world action-adventure traversing the skies and depths of Hyrule.",
-            isSample = true
-        ),
-        Game(
-            title = "NX2 Architecture Testbench",
-            programId = "0000000000000001",
-            developer = "Camille LaVey / Eden Project",
-            version = "0.9.4",
-            fileExtension = "nro",
-            path = "Internal/Switch/Homebrew/nx2_bench.nro",
-            isNx2 = true,
-            isHomebrew = true,
-            sizeMb = 48,
-            lastPlayedTime = "Just now",
-            playtimeMinutes = 35,
-            isFavorite = true,
-            description = "Official Eglantine homebrew verifying LDAPR instructions, LSE atomics, memory limits, and Vulkan compute throughput.",
-            isSample = true
-        )
-    )
+    private var appContext: android.content.Context? = null
 
     private val _drivers = MutableStateFlow(snapdragonOptimizedDrivers)
     val drivers: StateFlow<List<VulkanDriver>> = _drivers.asStateFlow()
@@ -235,7 +154,8 @@ class EglantineRepository {
     private val _snapdragonConfig = MutableStateFlow(SnapdragonOptimizationConfig())
     val snapdragonConfig: StateFlow<SnapdragonOptimizationConfig> = _snapdragonConfig.asStateFlow()
 
-    private val _games = MutableStateFlow(initialGames)
+    // User's game library starts empty (no demo games) and loads persisted ROMs from disk
+    private val _games = MutableStateFlow<List<Game>>(emptyList())
     val games: StateFlow<List<Game>> = _games.asStateFlow()
 
     private val _keysFirmwareState = MutableStateFlow(KeysFirmwareState())
@@ -253,6 +173,33 @@ class EglantineRepository {
 
     private val _updateInfo = MutableStateFlow(com.example.model.ApkUpdateInfo())
     val updateInfo: StateFlow<com.example.model.ApkUpdateInfo> = _updateInfo.asStateFlow()
+
+    /**
+     * Attaches application context and restores persisted user games, ROM folder URI, and driver selection.
+     */
+    fun attachContext(context: android.content.Context) {
+        appContext = context.applicationContext
+        val savedGames = LibraryPersistenceManager.loadGames(appContext)
+        if (savedGames.isNotEmpty()) {
+            _games.value = savedGames
+        }
+        LibraryPersistenceManager.loadRomsDirectory(appContext)?.let { savedDir ->
+            if (savedDir.isNotBlank()) {
+                _keysFirmwareState.update {
+                    it.copy(romsDirectoryUri = savedDir, totalRomsFound = savedGames.size)
+                }
+            }
+        }
+        LibraryPersistenceManager.loadSelectedDriver(appContext)?.let { savedDriverId ->
+            if (_drivers.value.any { it.id == savedDriverId }) {
+                _selectedDriverId.value = savedDriverId
+            }
+        }
+    }
+
+    private fun persistCurrentGames() {
+        LibraryPersistenceManager.saveGames(appContext, _games.value)
+    }
 
     fun updateApkDownloadState(
         status: com.example.model.ApkUpdateStatus,
@@ -294,6 +241,7 @@ class EglantineRepository {
 
     fun selectDriver(driverId: String) {
         _selectedDriverId.value = driverId
+        LibraryPersistenceManager.saveSelectedDriver(appContext, driverId)
     }
 
     fun applySnapdragonChipsetProfile(chipset: SnapdragonChipset) {
@@ -309,6 +257,7 @@ class EglantineRepository {
         val targetDriver = drivers.value.find { it.id == chipset.defaultDriverId }
         if (targetDriver != null) {
             _selectedDriverId.value = targetDriver.id
+            LibraryPersistenceManager.saveSelectedDriver(appContext, targetDriver.id)
         }
     }
 
@@ -337,6 +286,7 @@ class EglantineRepository {
         )
         _drivers.update { listOf(newDriver) + it }
         _selectedDriverId.value = newDriver.id
+        LibraryPersistenceManager.saveSelectedDriver(appContext, newDriver.id)
     }
 
     fun updateKeysInstalled(fileName: String, count: Int, revision: String) {
@@ -383,16 +333,21 @@ class EglantineRepository {
         _keysFirmwareState.update {
             it.copy(
                 romsDirectoryUri = dirUri,
-                totalRomsFound = it.totalRomsFound + newlyFoundGames.size
+                totalRomsFound = _games.value.size
             )
         }
+        LibraryPersistenceManager.saveRomsDirectory(appContext, dirUri)
         if (newlyFoundGames.isNotEmpty()) {
-            _games.update { it + newlyFoundGames }
+            addScannedGames(newlyFoundGames)
         }
     }
 
     fun addCustomGame(game: Game) {
-        _games.update { listOf(game) + it }
+        _games.update { existing ->
+            val filtered = existing.filter { it.programId != game.programId && it.path != game.path }
+            listOf(game.copy(isSample = false)) + filtered
+        }
+        persistCurrentGames()
     }
 
     fun toggleFavorite(programId: String) {
@@ -401,21 +356,12 @@ class EglantineRepository {
                 if (it.programId == programId) it.copy(isFavorite = !it.isFavorite) else it
             }
         }
-    }
-
-    fun clearSampleGames(): Int {
-        val countBefore = _games.value.count { it.isSample }
-        _games.update { list -> list.filter { !it.isSample } }
-        return countBefore
-    }
-
-    fun restoreSampleGames() {
-        val nonSamples = _games.value.filter { !it.isSample }
-        _games.value = nonSamples + initialGames
+        persistCurrentGames()
     }
 
     fun removeGame(programId: String) {
         _games.update { list -> list.filter { it.programId != programId } }
+        persistCurrentGames()
     }
 
     fun updateGameTitle(programId: String, newTitle: String) {
@@ -424,17 +370,40 @@ class EglantineRepository {
                 if (it.programId == programId) it.copy(title = newTitle.trim()) else it
             }
         }
+        persistCurrentGames()
+    }
+
+    fun updateGameBoxArt(programId: String, boxArtUrl: String) {
+        _games.update { list ->
+            list.map {
+                if (it.programId == programId) it.copy(boxArtUrl = boxArtUrl) else it
+            }
+        }
+        persistCurrentGames()
+    }
+
+    fun markGamePlayed(programId: String) {
+        _games.update { list ->
+            list.map {
+                if (it.programId == programId) {
+                    it.copy(lastPlayedTime = "Just now", playtimeMinutes = it.playtimeMinutes + 1)
+                } else it
+            }
+        }
+        persistCurrentGames()
     }
 
     fun addScannedGames(newGames: List<Game>) {
         if (newGames.isEmpty()) return
-        // Merge without duplicating program IDs or paths
         _games.update { existing ->
             val existingIds = existing.map { it.programId }.toSet()
             val existingPaths = existing.map { it.path }.toSet()
-            val uniqueNew = newGames.filter { it.programId !in existingIds && it.path !in existingPaths }
+            val uniqueNew = newGames
+                .map { it.copy(isSample = false) }
+                .filter { it.programId !in existingIds && it.path !in existingPaths }
             uniqueNew + existing
         }
+        persistCurrentGames()
     }
 
     fun updateSettings(newSettings: EmulatorSettings) {
@@ -513,11 +482,43 @@ class EglantineRepository {
                     snapdragonTurbo = true,
                     snapdragonKgslFastPath = true
                 )
+                com.example.model.AAAPreset.MARIO_KART_WORLD -> current.copy(
+                    activeAaaPreset = preset,
+                    cpuBackend = "Native Code Execution (NCE)",
+                    fastmemEnabled = true,
+                    extendedDramMode = true,
+                    vmaBlockAwareEviction = true,
+                    arm64ReservationPreCheck = true,
+                    nx2GsvSparsePreFree = true,
+                    commandFetchSnapshotGuard = true,
+                    forkPipelineCacheIsolation = true
+                )
+                com.example.model.AAAPreset.FIRE_EMBLEM_FW -> current.copy(
+                    activeAaaPreset = preset,
+                    cpuBackend = "Native Code Execution (NCE)",
+                    fastmemEnabled = true,
+                    extendedDramMode = true,
+                    feSpatialUpscaleStandin = true,
+                    vmaBlockAwareEviction = true,
+                    forkPipelineCacheIsolation = true,
+                    nx2GsvSparsePreFree = true
+                )
+                com.example.model.AAAPreset.DK_BANANZA -> current.copy(
+                    activeAaaPreset = preset,
+                    cpuBackend = "Native Code Execution (NCE)",
+                    fastmemEnabled = true,
+                    extendedDramMode = true,
+                    commandFetchSnapshotGuard = true,
+                    forkPipelineCacheIsolation = true,
+                    arm64ReservationPreCheck = true,
+                    nx2GsvSparsePreFree = true
+                )
             }
         }
         val targetDriver = drivers.value.find { it.id == preset.recommendedDriverId }
         if (targetDriver != null) {
             _selectedDriverId.value = targetDriver.id
+            LibraryPersistenceManager.saveSelectedDriver(appContext, targetDriver.id)
         }
     }
 }

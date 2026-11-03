@@ -1,5 +1,8 @@
 package com.example.ui.screens
 
+import android.net.Uri
+import androidx.activity.compose.rememberLauncherForActivityResult
+import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.foundation.Image
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
@@ -7,6 +10,7 @@ import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxSize
@@ -21,24 +25,26 @@ import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Add
+import androidx.compose.material.icons.filled.AutoAwesome
+import androidx.compose.material.icons.filled.CreateNewFolder
 import androidx.compose.material.icons.filled.Delete
 import androidx.compose.material.icons.filled.Edit
 import androidx.compose.material.icons.filled.ErrorOutline
 import androidx.compose.material.icons.filled.Favorite
 import androidx.compose.material.icons.filled.FavoriteBorder
 import androidx.compose.material.icons.filled.FolderOpen
+import androidx.compose.material.icons.filled.Image
 import androidx.compose.material.icons.filled.Info
 import androidx.compose.material.icons.filled.MoreVert
 import androidx.compose.material.icons.filled.PlayArrow
-import androidx.compose.material.icons.filled.Refresh
 import androidx.compose.material.icons.filled.Search
 import androidx.compose.material.icons.filled.SportsEsports
-import androidx.compose.material.icons.filled.WarningAmber
 import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.Button
 import androidx.compose.material3.ButtonDefaults
 import androidx.compose.material3.Card
 import androidx.compose.material3.CardDefaults
+import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.DropdownMenu
 import androidx.compose.material3.DropdownMenuItem
 import androidx.compose.material3.FilterChip
@@ -64,9 +70,11 @@ import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import coil.compose.SubcomposeAsyncImage
 import com.example.R
 import com.example.model.Game
 import com.example.model.VulkanDriver
@@ -88,6 +96,7 @@ fun GamesScreen(
     activeDriver: VulkanDriver?,
     searchQuery: String,
     currentFilter: GameFilter,
+    isScrapingBoxArt: Boolean = false,
     launchError: LaunchErrorInfo? = null,
     onSearchChanged: (String) -> Unit,
     onFilterChanged: (GameFilter) -> Unit,
@@ -95,17 +104,43 @@ fun GamesScreen(
     onToggleFavorite: (String) -> Unit,
     onQuickAddGame: () -> Unit,
     onOpenSetup: () -> Unit,
+    onAddGameUri: ((Uri) -> Unit)? = null,
+    onScanFolderUri: ((Uri) -> Unit)? = null,
+    onAddCustomGame: ((String, String, Boolean) -> Unit)? = null,
+    onScrapeAllBoxArt: () -> Unit = {},
+    onScrapeGameBoxArt: (Game) -> Unit = {},
     onRemoveGame: (String) -> Unit = {},
     onRenameGame: (String, String) -> Unit = { _, _ -> },
-    onClearSampleGames: () -> Unit = {},
-    onRestoreSampleGames: () -> Unit = {},
     onDismissLaunchError: () -> Unit = {},
     onBypassKeysAndLaunch: (Game) -> Unit = {}
 ) {
     var selectedGameForDetails by remember { mutableStateOf<Game?>(null) }
     var gameToRename by remember { mutableStateOf<Game?>(null) }
+    var showCustomAddDialog by remember { mutableStateOf(false) }
 
-    val sampleGamesCount = remember(games) { games.count { it.isSample } }
+    val romFileLauncher = rememberLauncherForActivityResult(
+        contract = ActivityResultContracts.OpenDocument()
+    ) { uri: Uri? ->
+        if (uri != null) {
+            if (onAddGameUri != null) {
+                onAddGameUri(uri)
+            } else {
+                onQuickAddGame()
+            }
+        }
+    }
+
+    val romFolderLauncher = rememberLauncherForActivityResult(
+        contract = ActivityResultContracts.OpenDocumentTree()
+    ) { uri: Uri? ->
+        if (uri != null) {
+            if (onScanFolderUri != null) {
+                onScanFolderUri(uri)
+            } else {
+                onOpenSetup()
+            }
+        }
+    }
 
     LazyColumn(
         modifier = Modifier
@@ -118,96 +153,91 @@ fun GamesScreen(
         item {
             HeroBannerCard(
                 activeDriver = activeDriver,
-                onAddGame = onQuickAddGame,
+                onAddGame = {
+                    try {
+                        romFileLauncher.launch(arrayOf("*/*"))
+                    } catch (_: Exception) {
+                        showCustomAddDialog = true
+                    }
+                },
+                onScanFolder = {
+                    try {
+                        romFolderLauncher.launch(null)
+                    } catch (_: Exception) {
+                        onOpenSetup()
+                    }
+                },
                 onConfigure = onOpenSetup
             )
         }
 
-        // SAMPLE GAMES MANAGEMENT BANNER
-        if (sampleGamesCount > 0) {
-            item {
-                Card(
+        // SEARCH BAR & BOX ART SCRAPER ACTION BAR
+        item {
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                horizontalArrangement = Arrangement.spacedBy(8.dp),
+                verticalAlignment = Alignment.CenterVertically
+            ) {
+                OutlinedTextField(
+                    value = searchQuery,
+                    onValueChange = onSearchChanged,
                     modifier = Modifier
-                        .fillMaxWidth()
-                        .testTag("demo_games_banner"),
-                    shape = RoundedCornerShape(12.dp),
-                    colors = CardDefaults.cardColors(containerColor = DarkSurfaceHighlight),
-                    border = androidx.compose.foundation.BorderStroke(1.dp, Color(0x33FFB300))
-                ) {
-                    Row(
-                        modifier = Modifier
-                            .fillMaxWidth()
-                            .padding(horizontal = 12.dp, vertical = 10.dp),
-                        verticalAlignment = Alignment.CenterVertically,
-                        horizontalArrangement = Arrangement.SpaceBetween
-                    ) {
-                        Row(
-                            verticalAlignment = Alignment.CenterVertically,
-                            horizontalArrangement = Arrangement.spacedBy(8.dp),
-                            modifier = Modifier.weight(1f)
-                        ) {
-                            Icon(
-                                imageVector = Icons.Default.WarningAmber,
-                                contentDescription = null,
-                                tint = Color(0xFFFFB300),
-                                modifier = Modifier.size(20.dp)
-                            )
-                            Column {
-                                Text(
-                                    text = "Showing $sampleGamesCount Demo Entries",
-                                    color = TextPrimary,
-                                    fontSize = 12.sp,
-                                    fontWeight = FontWeight.Bold
-                                )
-                                Text(
-                                    text = "Clear mock entries to see only your real ROMs",
-                                    color = TextSecondary,
-                                    fontSize = 11.sp
-                                )
-                            }
-                        }
+                        .weight(1f)
+                        .testTag("search_games_input"),
+                    placeholder = { Text("Search your saved Switch & NX2 games…", color = TextSecondary, fontSize = 13.sp) },
+                    leadingIcon = {
+                        Icon(
+                            imageVector = Icons.Default.Search,
+                            contentDescription = "Search",
+                            tint = EglantineMagenta
+                        )
+                    },
+                    singleLine = true,
+                    colors = OutlinedTextFieldDefaults.colors(
+                        focusedBorderColor = EglantineMagenta,
+                        unfocusedBorderColor = Color(0x55E040FB),
+                        focusedContainerColor = DarkSurfaceVariant,
+                        unfocusedContainerColor = DarkSurfaceVariant,
+                        focusedTextColor = TextPrimary,
+                        unfocusedTextColor = TextPrimary
+                    ),
+                    shape = RoundedCornerShape(14.dp)
+                )
 
-                        Button(
-                            onClick = onClearSampleGames,
-                            colors = ButtonDefaults.buttonColors(containerColor = Color(0x33FF5252)),
-                            shape = RoundedCornerShape(8.dp),
-                            contentPadding = androidx.compose.foundation.layout.PaddingValues(horizontal = 10.dp, vertical = 6.dp),
-                            modifier = Modifier.testTag("btn_clear_sample_games")
-                        ) {
-                            Text("Clear Demo Games", color = Color(0xFFFF5252), fontSize = 11.sp, fontWeight = FontWeight.Bold)
-                        }
+                Button(
+                    onClick = onScrapeAllBoxArt,
+                    enabled = games.isNotEmpty() && !isScrapingBoxArt,
+                    colors = ButtonDefaults.buttonColors(
+                        containerColor = DarkSurfaceHighlight,
+                        disabledContainerColor = DarkSurfaceVariant
+                    ),
+                    shape = RoundedCornerShape(14.dp),
+                    contentPadding = PaddingValues(horizontal = 12.dp, vertical = 14.dp),
+                    modifier = Modifier.testTag("btn_scrape_all_box_art")
+                ) {
+                    if (isScrapingBoxArt) {
+                        CircularProgressIndicator(
+                            modifier = Modifier.size(16.dp),
+                            strokeWidth = 2.dp,
+                            color = EglantineCyan
+                        )
+                    } else {
+                        Icon(
+                            imageVector = Icons.Default.Image,
+                            contentDescription = "Scrape Box Art",
+                            tint = EglantineCyan,
+                            modifier = Modifier.size(18.dp)
+                        )
                     }
+                    Spacer(Modifier.width(6.dp))
+                    Text(
+                        text = if (isScrapingBoxArt) "Scraping…" else "Box Art",
+                        color = EglantineCyan,
+                        fontSize = 12.sp,
+                        fontWeight = FontWeight.Bold
+                    )
                 }
             }
-        }
-
-        // SEARCH BAR
-        item {
-            OutlinedTextField(
-                value = searchQuery,
-                onValueChange = onSearchChanged,
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .testTag("search_games_input"),
-                placeholder = { Text("Search Switch & NX2 titles, IDs…", color = TextSecondary) },
-                leadingIcon = {
-                    Icon(
-                        imageVector = Icons.Default.Search,
-                        contentDescription = "Search",
-                        tint = EglantineMagenta
-                    )
-                },
-                singleLine = true,
-                colors = OutlinedTextFieldDefaults.colors(
-                    focusedBorderColor = EglantineMagenta,
-                    unfocusedBorderColor = Color(0x55E040FB),
-                    focusedContainerColor = DarkSurfaceVariant,
-                    unfocusedContainerColor = DarkSurfaceVariant,
-                    focusedTextColor = TextPrimary,
-                    unfocusedTextColor = TextPrimary
-                ),
-                shape = RoundedCornerShape(14.dp)
-            )
         }
 
         // FILTER CHIPS ROW
@@ -258,13 +288,26 @@ fun GamesScreen(
             }
         }
 
-        // GAMES LIST / EMPTY STATE
+        // GAMES LIST / EMPTY STATE (NO DEMO GAMES)
         if (games.isEmpty()) {
             item {
                 EmptyGamesCard(
-                    onAddGame = onQuickAddGame,
-                    onSetup = onOpenSetup,
-                    onRestoreSamples = onRestoreSampleGames
+                    onPickRomFile = {
+                        try {
+                            romFileLauncher.launch(arrayOf("*/*"))
+                        } catch (_: Exception) {
+                            showCustomAddDialog = true
+                        }
+                    },
+                    onScanRomFolder = {
+                        try {
+                            romFolderLauncher.launch(null)
+                        } catch (_: Exception) {
+                            onOpenSetup()
+                        }
+                    },
+                    onAddCustomEntry = { showCustomAddDialog = true },
+                    onSetup = onOpenSetup
                 )
             }
         } else {
@@ -273,6 +316,7 @@ fun GamesScreen(
                     game = game,
                     onPlay = { onLaunchGame(game) },
                     onToggleFavorite = { onToggleFavorite(game.programId) },
+                    onScrapeBoxArt = { onScrapeGameBoxArt(game) },
                     onDetails = { selectedGameForDetails = game },
                     onRename = { gameToRename = game },
                     onRemove = { onRemoveGame(game.programId) }
@@ -281,6 +325,21 @@ fun GamesScreen(
         }
 
         item { Spacer(modifier = Modifier.height(24.dp)) }
+    }
+
+    // CUSTOM ROM ADD DIALOG (DIRECTLY FROM GAMES SCREEN)
+    if (showCustomAddDialog) {
+        CustomRomEntryDialog(
+            onDismiss = { showCustomAddDialog = false },
+            onAdd = { title, ext, isNx2 ->
+                showCustomAddDialog = false
+                if (onAddCustomGame != null) {
+                    onAddCustomGame(title, ext, isNx2)
+                } else {
+                    onOpenSetup()
+                }
+            }
+        )
     }
 
     // LAUNCH ERROR DIALOG
@@ -307,6 +366,9 @@ fun GamesScreen(
             onLaunch = {
                 selectedGameForDetails = null
                 onLaunchGame(game)
+            },
+            onScrapeBoxArt = {
+                onScrapeGameBoxArt(game)
             },
             onRename = {
                 selectedGameForDetails = null
@@ -336,6 +398,7 @@ fun GamesScreen(
 fun HeroBannerCard(
     activeDriver: VulkanDriver?,
     onAddGame: () -> Unit,
+    onScanFolder: () -> Unit,
     onConfigure: () -> Unit
 ) {
     Card(
@@ -345,7 +408,7 @@ fun HeroBannerCard(
         shape = RoundedCornerShape(20.dp),
         colors = CardDefaults.cardColors(containerColor = DarkSurfaceVariant)
     ) {
-        Box(modifier = Modifier.fillMaxWidth().height(175.dp)) {
+        Box(modifier = Modifier.fillMaxWidth().height(178.dp)) {
             Image(
                 painter = painterResource(id = R.drawable.banner_eglantine),
                 contentDescription = "Eglantine Console Banner",
@@ -385,10 +448,10 @@ fun HeroBannerCard(
                                 .background(AccentSuccess)
                         )
                         Text(
-                            text = "EGLANTINE",
+                            text = "EGLANTINE • LICHII NX2",
                             color = Color.White,
                             fontWeight = FontWeight.ExtraBold,
-                            fontSize = 17.sp,
+                            fontSize = 15.sp,
                             letterSpacing = 1.sp
                         )
                     }
@@ -414,43 +477,43 @@ fun HeroBannerCard(
                     horizontalArrangement = Arrangement.SpaceBetween,
                     verticalAlignment = Alignment.Bottom
                 ) {
-                    Column {
+                    Column(modifier = Modifier.weight(1f)) {
                         Text(
                             text = "Switch 2 & Switch 1",
                             color = TextPrimary,
                             fontWeight = FontWeight.Bold,
-                            fontSize = 16.sp
+                            fontSize = 15.sp
                         )
                         Text(
-                            text = "Snapdragon Turnip • UBWC 4.0 Memory Tiling",
+                            text = "Persistent Library • Auto Box Art Scraper",
                             color = TextSecondary,
                             fontSize = 11.sp
                         )
                     }
 
-                    Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                    Row(horizontalArrangement = Arrangement.spacedBy(6.dp)) {
                         Button(
                             onClick = onAddGame,
                             colors = ButtonDefaults.buttonColors(containerColor = EglantineMagenta),
                             shape = RoundedCornerShape(10.dp),
-                            contentPadding = androidx.compose.foundation.layout.PaddingValues(horizontal = 12.dp, vertical = 6.dp),
+                            contentPadding = PaddingValues(horizontal = 10.dp, vertical = 6.dp),
                             modifier = Modifier.testTag("btn_hero_add_game")
                         ) {
-                            Icon(Icons.Default.Add, contentDescription = null, modifier = Modifier.size(16.dp))
+                            Icon(Icons.Default.Add, contentDescription = null, modifier = Modifier.size(15.dp))
                             Spacer(Modifier.width(4.dp))
-                            Text("Add ROM", fontSize = 12.sp, fontWeight = FontWeight.Bold)
+                            Text("Add ROM", fontSize = 11.5.sp, fontWeight = FontWeight.Bold)
                         }
 
                         Button(
-                            onClick = onConfigure,
+                            onClick = onScanFolder,
                             colors = ButtonDefaults.buttonColors(containerColor = DarkSurfaceHighlight),
                             shape = RoundedCornerShape(10.dp),
-                            contentPadding = androidx.compose.foundation.layout.PaddingValues(horizontal = 10.dp, vertical = 6.dp),
-                            modifier = Modifier.testTag("btn_hero_setup")
+                            contentPadding = PaddingValues(horizontal = 10.dp, vertical = 6.dp),
+                            modifier = Modifier.testTag("btn_hero_scan_folder")
                         ) {
-                            Icon(Icons.Default.FolderOpen, contentDescription = null, modifier = Modifier.size(16.dp), tint = EglantineCyan)
+                            Icon(Icons.Default.FolderOpen, contentDescription = null, modifier = Modifier.size(15.dp), tint = EglantineCyan)
                             Spacer(Modifier.width(4.dp))
-                            Text("Setup", fontSize = 12.sp, color = TextPrimary)
+                            Text("Folder", fontSize = 11.5.sp, color = TextPrimary)
                         }
                     }
                 }
@@ -498,6 +561,7 @@ fun GameCardItem(
     game: Game,
     onPlay: () -> Unit,
     onToggleFavorite: () -> Unit,
+    onScrapeBoxArt: () -> Unit,
     onDetails: () -> Unit,
     onRename: () -> Unit,
     onRemove: () -> Unit
@@ -519,29 +583,18 @@ fun GameCardItem(
         Row(
             modifier = Modifier
                 .fillMaxWidth()
-                .padding(14.dp),
+                .padding(12.dp),
             verticalAlignment = Alignment.CenterVertically
         ) {
-            // Game Icon
-            Box(
+            // Scraped Box Art Cover (Vertical Switch Case Aspect Ratio)
+            GameBoxArtThumbnail(
+                title = game.title,
+                boxArtUrl = game.boxArtUrl,
+                isNx2 = game.isNx2,
                 modifier = Modifier
-                    .size(56.dp)
-                    .clip(RoundedCornerShape(12.dp))
-                    .background(
-                        Brush.linearGradient(
-                            if (game.isNx2) listOf(EglantineViolet, EglantineMagenta)
-                            else listOf(Color(0xFFD32F2F), Color(0xFFFF5252))
-                        )
-                    ),
-                contentAlignment = Alignment.Center
-            ) {
-                Icon(
-                    imageVector = Icons.Default.SportsEsports,
-                    contentDescription = null,
-                    tint = Color.White,
-                    modifier = Modifier.size(30.dp)
-                )
-            }
+                    .width(62.dp)
+                    .height(86.dp)
+            )
 
             Spacer(modifier = Modifier.width(12.dp))
 
@@ -582,25 +635,13 @@ fun GameCardItem(
                         }
                     }
 
-                    // Demo vs Local badge
-                    if (game.isSample) {
-                        Box(
-                            modifier = Modifier
-                                .clip(RoundedCornerShape(4.dp))
-                                .background(Color(0x33FFB300))
-                                .padding(horizontal = 5.dp, vertical = 2.dp)
-                        ) {
-                            Text("DEMO", color = Color(0xFFFFB300), fontSize = 8.5.sp, fontWeight = FontWeight.Bold)
-                        }
-                    } else {
-                        Box(
-                            modifier = Modifier
-                                .clip(RoundedCornerShape(4.dp))
-                                .background(Color(0x3300E5FF))
-                                .padding(horizontal = 5.dp, vertical = 2.dp)
-                        ) {
-                            Text("LOCAL ROM", color = EglantineCyan, fontSize = 8.5.sp, fontWeight = FontWeight.Bold)
-                        }
+                    Box(
+                        modifier = Modifier
+                            .clip(RoundedCornerShape(4.dp))
+                            .background(Color(0x3300E5FF))
+                            .padding(horizontal = 5.dp, vertical = 2.dp)
+                    ) {
+                        Text("SAVED ROM", color = EglantineCyan, fontSize = 8.5.sp, fontWeight = FontWeight.Bold)
                     }
 
                     Box(
@@ -618,7 +659,7 @@ fun GameCardItem(
                     }
                 }
 
-                Spacer(modifier = Modifier.height(4.dp))
+                Spacer(modifier = Modifier.height(5.dp))
 
                 Text(
                     text = game.title,
@@ -630,11 +671,18 @@ fun GameCardItem(
                 )
 
                 Text(
-                    text = "${game.developer} • ID: ${game.programId.take(12)}… • ${game.sizeMb} MB",
+                    text = "${game.developer} • ID: ${game.programId.take(12)}…",
                     color = TextSecondary,
                     fontSize = 11.sp,
                     maxLines = 1,
                     overflow = TextOverflow.Ellipsis
+                )
+
+                Text(
+                    text = "${game.sizeMb} MB • Played: ${game.lastPlayedTime}",
+                    color = if (game.boxArtUrl != null) AccentSuccess else TextSecondary,
+                    fontSize = 10.sp,
+                    maxLines = 1
                 )
             }
 
@@ -682,6 +730,14 @@ fun GameCardItem(
                         leadingIcon = { Icon(Icons.Default.PlayArrow, contentDescription = null, tint = EglantineMagenta) }
                     )
                     DropdownMenuItem(
+                        text = { Text("Scrape / Refresh Box Art", color = TextPrimary) },
+                        onClick = {
+                            showMenu = false
+                            onScrapeBoxArt()
+                        },
+                        leadingIcon = { Icon(Icons.Default.Image, contentDescription = null, tint = EglantineCyan) }
+                    )
+                    DropdownMenuItem(
                         text = { Text("Rename Title", color = TextPrimary) },
                         onClick = {
                             showMenu = false
@@ -727,6 +783,94 @@ fun GameCardItem(
                 )
             }
         }
+    }
+}
+
+@Composable
+fun GameBoxArtThumbnail(
+    title: String,
+    boxArtUrl: String?,
+    isNx2: Boolean,
+    modifier: Modifier = Modifier
+) {
+    val spineColor = if (isNx2) EglantineMagenta else Color(0xFFE53935)
+    Box(
+        modifier = modifier
+            .clip(RoundedCornerShape(10.dp))
+            .background(
+                Brush.verticalGradient(
+                    if (isNx2) listOf(Color(0xFF311B92), Color(0xFF880E4F))
+                    else listOf(Color(0xFFB71C1C), Color(0xFF1A1829))
+                )
+            )
+            .border(1.dp, spineColor.copy(alpha = 0.7f), RoundedCornerShape(10.dp)),
+        contentAlignment = Alignment.Center
+    ) {
+        if (!boxArtUrl.isNullOrBlank()) {
+            SubcomposeAsyncImage(
+                model = boxArtUrl,
+                contentDescription = "$title Box Art",
+                contentScale = ContentScale.Crop,
+                modifier = Modifier.fillMaxSize(),
+                loading = {
+                    FallbackBoxArtContent(title = title, isNx2 = isNx2)
+                },
+                error = {
+                    FallbackBoxArtContent(title = title, isNx2 = isNx2)
+                }
+            )
+        } else {
+            FallbackBoxArtContent(title = title, isNx2 = isNx2)
+        }
+
+        // Top Switch header strip
+        Box(
+            modifier = Modifier
+                .fillMaxWidth()
+                .align(Alignment.TopCenter)
+                .background(spineColor.copy(alpha = 0.88f))
+                .padding(vertical = 1.5.dp),
+            contentAlignment = Alignment.Center
+        ) {
+            Text(
+                text = if (isNx2) "SWITCH 2" else "SWITCH",
+                color = Color.White,
+                fontSize = 6.5.sp,
+                fontWeight = FontWeight.ExtraBold,
+                letterSpacing = 0.6.sp
+            )
+        }
+    }
+}
+
+@Composable
+private fun FallbackBoxArtContent(
+    title: String,
+    isNx2: Boolean
+) {
+    Column(
+        modifier = Modifier
+            .fillMaxSize()
+            .padding(horizontal = 4.dp, vertical = 14.dp),
+        horizontalAlignment = Alignment.CenterHorizontally,
+        verticalArrangement = Arrangement.SpaceBetween
+    ) {
+        Icon(
+            imageVector = Icons.Default.SportsEsports,
+            contentDescription = null,
+            tint = Color.White.copy(alpha = 0.85f),
+            modifier = Modifier.size(22.dp)
+        )
+        Text(
+            text = title,
+            color = Color.White,
+            fontSize = 8.sp,
+            fontWeight = FontWeight.Bold,
+            textAlign = TextAlign.Center,
+            maxLines = 3,
+            lineHeight = 9.5.sp,
+            overflow = TextOverflow.Ellipsis
+        )
     }
 }
 
@@ -804,7 +948,7 @@ fun LaunchErrorDialog(
                         colors = ButtonDefaults.outlinedButtonColors(contentColor = EglantineCyan),
                         shape = RoundedCornerShape(8.dp)
                     ) {
-                        Text("Load Test Keys & Play", fontSize = 11.sp)
+                        Text("Load Keys & Play", fontSize = 11.sp)
                     }
                 }
                 TextButton(onClick = onDismiss) {
@@ -826,11 +970,11 @@ fun RenameGameDialog(
 
     AlertDialog(
         onDismissRequest = onDismiss,
-        title = { Text("Rename Game Title", color = TextPrimary, fontWeight = FontWeight.Bold) },
+        title = { Text("Rename Game & Re-Scrape Box Art", color = TextPrimary, fontWeight = FontWeight.Bold) },
         text = {
             Column(verticalArrangement = Arrangement.spacedBy(10.dp)) {
                 Text(
-                    text = "Update how this game appears in your Eglantine library:",
+                    text = "Update how this game appears in your Eglantine library (box art will automatically update):",
                     color = TextSecondary,
                     fontSize = 12.sp
                 )
@@ -856,7 +1000,7 @@ fun RenameGameDialog(
                 onClick = { if (titleText.isNotBlank()) onConfirmRename(titleText) },
                 colors = ButtonDefaults.buttonColors(containerColor = EglantineMagenta)
             ) {
-                Text("Save Title")
+                Text("Save & Scrape Cover")
             }
         },
         dismissButton = {
@@ -870,16 +1014,19 @@ fun RenameGameDialog(
 
 @Composable
 fun EmptyGamesCard(
-    onAddGame: () -> Unit,
-    onSetup: () -> Unit,
-    onRestoreSamples: () -> Unit
+    onPickRomFile: () -> Unit,
+    onScanRomFolder: () -> Unit,
+    onAddCustomEntry: () -> Unit,
+    onSetup: () -> Unit
 ) {
     Card(
         modifier = Modifier
             .fillMaxWidth()
-            .padding(vertical = 24.dp),
-        shape = RoundedCornerShape(16.dp),
-        colors = CardDefaults.cardColors(containerColor = DarkSurfaceVariant)
+            .padding(vertical = 18.dp)
+            .testTag("empty_library_card"),
+        shape = RoundedCornerShape(18.dp),
+        colors = CardDefaults.cardColors(containerColor = DarkSurfaceVariant),
+        border = androidx.compose.foundation.BorderStroke(1.dp, Color(0x44E040FB))
     ) {
         Column(
             modifier = Modifier
@@ -895,37 +1042,55 @@ fun EmptyGamesCard(
                 modifier = Modifier.size(48.dp)
             )
             Text(
-                text = "Library is Empty",
+                text = "Your Game Library is Ready",
                 color = TextPrimary,
-                fontSize = 16.sp,
+                fontSize = 17.sp,
                 fontWeight = FontWeight.Bold
             )
             Text(
-                text = "Add your Nintendo Switch (.nsp, .xci, .nro) games in Setup or restore sample titles.",
+                text = "Add your Nintendo Switch (.nsp, .xci, .nro) or Switch 2 (NX2) games. Eglantine automatically remembers all added games across app restarts and scrapes official box art.",
                 color = TextSecondary,
                 fontSize = 12.sp,
-                textAlign = androidx.compose.ui.text.style.TextAlign.Center
+                textAlign = TextAlign.Center,
+                lineHeight = 17.sp
             )
             Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
                 Button(
-                    onClick = onAddGame,
+                    onClick = onPickRomFile,
                     colors = ButtonDefaults.buttonColors(containerColor = EglantineMagenta),
-                    shape = RoundedCornerShape(10.dp)
+                    shape = RoundedCornerShape(10.dp),
+                    modifier = Modifier.testTag("btn_empty_pick_rom")
                 ) {
-                    Text("Add ROM File")
+                    Icon(Icons.Default.Add, contentDescription = null, modifier = Modifier.size(16.dp))
+                    Spacer(Modifier.width(4.dp))
+                    Text("Add ROM File", fontWeight = FontWeight.Bold)
                 }
                 Button(
-                    onClick = onSetup,
-                    colors = ButtonDefaults.buttonColors(containerColor = DarkSurfaceHighlight),
-                    shape = RoundedCornerShape(10.dp)
+                    onClick = onScanRomFolder,
+                    colors = ButtonDefaults.buttonColors(containerColor = EglantineCyan),
+                    shape = RoundedCornerShape(10.dp),
+                    modifier = Modifier.testTag("btn_empty_scan_folder")
                 ) {
-                    Text("Open Setup")
+                    Icon(Icons.Default.FolderOpen, contentDescription = null, tint = Color.Black, modifier = Modifier.size(16.dp))
+                    Spacer(Modifier.width(4.dp))
+                    Text("Scan ROM Folder", color = Color.Black, fontWeight = FontWeight.Bold)
                 }
             }
-            TextButton(onClick = onRestoreSamples) {
-                Icon(Icons.Default.Refresh, contentDescription = null, modifier = Modifier.size(16.dp), tint = EglantineCyan)
-                Spacer(Modifier.width(4.dp))
-                Text("Restore Sample Games", color = EglantineCyan, fontSize = 12.sp)
+            Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                OutlinedButton(
+                    onClick = onAddCustomEntry,
+                    border = androidx.compose.foundation.BorderStroke(1.dp, EglantineMagenta),
+                    colors = ButtonDefaults.outlinedButtonColors(contentColor = EglantineMagenta),
+                    shape = RoundedCornerShape(10.dp),
+                    modifier = Modifier.testTag("btn_empty_custom_entry")
+                ) {
+                    Icon(Icons.Default.CreateNewFolder, contentDescription = null, modifier = Modifier.size(15.dp))
+                    Spacer(Modifier.width(4.dp))
+                    Text("Quick Add by Title", fontSize = 12.sp)
+                }
+                TextButton(onClick = onSetup) {
+                    Text("Keys & Firmware Setup", color = EglantineCyan, fontSize = 12.sp)
+                }
             }
         }
     }
@@ -936,6 +1101,7 @@ fun GameDetailsDialog(
     game: Game,
     onDismiss: () -> Unit,
     onLaunch: () -> Unit,
+    onScrapeBoxArt: () -> Unit,
     onRename: () -> Unit,
     onRemove: () -> Unit
 ) {
@@ -943,24 +1109,50 @@ fun GameDetailsDialog(
         onDismissRequest = onDismiss,
         title = { Text(text = game.title, color = TextPrimary, fontWeight = FontWeight.Bold) },
         text = {
-            Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
+            Column(verticalArrangement = Arrangement.spacedBy(10.dp)) {
+                Row(
+                    modifier = Modifier.fillMaxWidth(),
+                    horizontalArrangement = Arrangement.spacedBy(12.dp),
+                    verticalAlignment = Alignment.CenterVertically
+                ) {
+                    GameBoxArtThumbnail(
+                        title = game.title,
+                        boxArtUrl = game.boxArtUrl,
+                        isNx2 = game.isNx2,
+                        modifier = Modifier
+                            .width(74.dp)
+                            .height(104.dp)
+                    )
+                    Column(verticalArrangement = Arrangement.spacedBy(4.dp), modifier = Modifier.weight(1f)) {
+                        Text("Program ID: ${game.programIdHex}", color = EglantineCyan, fontSize = 11.sp, fontWeight = FontWeight.Bold)
+                        Text("Developer: ${game.developer}", color = TextPrimary, fontSize = 12.sp)
+                        Text(
+                            "Architecture: ${if (game.isNx2) "Switch 2 (NX2 / ARMv8.2-A)" else "Switch 1 (Maxwell Tegra X1)"}",
+                            color = EglantineMagenta,
+                            fontSize = 11.sp
+                        )
+                        Text("Format: .${game.fileExtension.uppercase()} • ${game.sizeMb} MB", color = TextSecondary, fontSize = 11.sp)
+                        OutlinedButton(
+                            onClick = onScrapeBoxArt,
+                            contentPadding = PaddingValues(horizontal = 8.dp, vertical = 2.dp),
+                            border = androidx.compose.foundation.BorderStroke(1.dp, EglantineCyan),
+                            colors = ButtonDefaults.outlinedButtonColors(contentColor = EglantineCyan),
+                            modifier = Modifier.height(28.dp)
+                        ) {
+                            Icon(Icons.Default.AutoAwesome, contentDescription = null, modifier = Modifier.size(13.dp))
+                            Spacer(Modifier.width(4.dp))
+                            Text("Scrape Box Art", fontSize = 10.sp)
+                        }
+                    }
+                }
+
                 Text(
-                    text = game.description.ifEmpty { "Nintendo Switch retail title playable on Eglantine emulator." },
+                    text = game.description.ifEmpty { "Nintendo Switch retail title saved in your persistent Eglantine library." },
                     color = TextSecondary,
-                    fontSize = 13.sp
+                    fontSize = 12.5.sp
                 )
-                Spacer(Modifier.height(4.dp))
-                Text("Program ID: ${game.programIdHex}", color = EglantineCyan, fontSize = 12.sp)
-                Text("Developer: ${game.developer}", color = TextPrimary, fontSize = 12.sp)
-                Text(
-                    "Architecture: ${if (game.isNx2) "Switch 2 (NX2 / ARMv8.2-A / NVN2)" else "Switch 1 (Maxwell Tegra X1)"}",
-                    color = EglantineMagenta,
-                    fontSize = 12.sp
-                )
-                Text("Format: .${game.fileExtension.uppercase()} • Size: ${game.sizeMb} MB", color = TextSecondary, fontSize = 11.sp)
-                Text("Source: ${if (game.isSample) "Demo / Sample Entry" else "Local Storage"}", color = if (game.isSample) Color(0xFFFFB300) else AccentSuccess, fontSize = 11.sp)
                 Text("Location: ${game.path}", color = TextSecondary, fontSize = 10.sp, maxLines = 2, overflow = TextOverflow.Ellipsis)
-                
+
                 // Recommended AAA Backend Configuration
                 Box(
                     modifier = Modifier
@@ -971,16 +1163,20 @@ fun GameDetailsDialog(
                 ) {
                     Column(verticalArrangement = Arrangement.spacedBy(2.dp)) {
                         Text(
-                            text = "RECOMMENDED AAA BACKEND",
+                            text = "ACTIVE BUILD 104 / LICHII NX2 PROFILE",
                             color = EglantineMagenta,
                             fontSize = 10.sp,
                             fontWeight = FontWeight.Bold
                         )
                         Text(
-                            text = if (game.title.contains("Zelda", ignoreCase = true)) "NCE • 6GB DRAM • Turnip v24.3 • BC7 ASTC • Reactive Flush"
-                                   else if (game.title.contains("Mario", ignoreCase = true)) "NCE • Fastmem • Turnip • 1080p Docked • 60 FPS Mailbox"
-                                   else if (game.isNx2) "NX2 Ampere Split • 6 Cores • LDAPR • Turnip 8xx"
-                                   else "NCE • Fastmem • Mesa Turnip Vulkan 1.3 • Async Shaders",
+                            text = if (game.title.contains("Fire Emblem", ignoreCase = true))
+                                "EDEN_NX2_DLSS_STANDIN=1 • 14b4222bbe23abee Upscale • Prepass De-Jitter"
+                            else if (game.title.contains("Zelda", ignoreCase = true))
+                                "NCE • 6GB DRAM • Turnip v24.4 • BC7 ASTC • VMA Block Eviction"
+                            else if (game.isNx2)
+                                "NX2 GSV Sparse Tile Pre-Free • ARM64 CAS Pre-Check • EOS Frame Drain"
+                            else
+                                "NCE • Fastmem • Mesa Turnip Vulkan 1.3 • AAudio PCM Synthesizer",
                             color = EglantineCyan,
                             fontSize = 10.5.sp,
                             fontWeight = FontWeight.SemiBold

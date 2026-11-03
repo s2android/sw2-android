@@ -10,7 +10,6 @@ import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.WindowInsets
 import androidx.compose.foundation.layout.fillMaxSize
-import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.statusBars
 import androidx.compose.material.icons.Icons
@@ -29,14 +28,11 @@ import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
-import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
-import androidx.compose.runtime.setValue
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.text.font.FontWeight
-import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import com.example.ui.screens.EmulationScreen
@@ -85,11 +81,17 @@ fun EglantineApp(viewModel: EglantineViewModel) {
     val updateInfo by viewModel.updateInfo.collectAsStateWithLifecycle()
     val emulation by viewModel.emulation.collectAsStateWithLifecycle()
     val isFetchingDrivers by viewModel.isFetchingDrivers.collectAsStateWithLifecycle()
+    val isScrapingBoxArt by viewModel.isScrapingBoxArt.collectAsStateWithLifecycle()
     val userFeedbackMessage by viewModel.userFeedbackMessage.collectAsStateWithLifecycle()
     val launchError by viewModel.launchError.collectAsStateWithLifecycle()
 
     val context = androidx.compose.ui.platform.LocalContext.current
     val snackbarHostState = remember { SnackbarHostState() }
+
+    // Load persisted user games, scraped box art URLs, and ROM folder URI on launch
+    LaunchedEffect(Unit) {
+        viewModel.initializePersistence(context)
+    }
 
     LaunchedEffect(userFeedbackMessage) {
         userFeedbackMessage?.let { msg ->
@@ -107,6 +109,7 @@ fun EglantineApp(viewModel: EglantineViewModel) {
             onPause = { viewModel.pauseEmulation() },
             onResume = { viewModel.resumeEmulation() },
             onToggleDocked = { viewModel.toggleDockedMode() },
+            onToggleAudio = { viewModel.toggleAudioMute() },
             onSaveState = { viewModel.saveState() },
             onLoadState = { slot -> viewModel.loadState(slot) },
             onScreenshot = { viewModel.takeScreenshot() },
@@ -210,6 +213,7 @@ fun EglantineApp(viewModel: EglantineViewModel) {
                                 activeDriver = activeDriver,
                                 searchQuery = searchQuery,
                                 currentFilter = gameFilter,
+                                isScrapingBoxArt = isScrapingBoxArt,
                                 launchError = launchError,
                                 onSearchChanged = { viewModel.setSearchQuery(it) },
                                 onFilterChanged = { viewModel.setGameFilter(it) },
@@ -217,10 +221,13 @@ fun EglantineApp(viewModel: EglantineViewModel) {
                                 onToggleFavorite = { viewModel.toggleFavorite(it) },
                                 onQuickAddGame = { viewModel.selectTab(AppTab.SETUP) },
                                 onOpenSetup = { viewModel.selectTab(AppTab.SETUP) },
+                                onAddGameUri = { uri -> viewModel.addGameFromUri(context, uri) },
+                                onScanFolderUri = { uri -> viewModel.scanFolderForRoms(context, uri) },
+                                onAddCustomGame = { title, ext, isNx2 -> viewModel.addGameFile(title, ext, isNx2) },
+                                onScrapeAllBoxArt = { viewModel.scrapeAllBoxArt() },
+                                onScrapeGameBoxArt = { game -> viewModel.scrapeBoxArtForGame(game) },
                                 onRemoveGame = { viewModel.removeGame(it) },
                                 onRenameGame = { id, title -> viewModel.renameGame(id, title) },
-                                onClearSampleGames = { viewModel.clearSampleGames() },
-                                onRestoreSampleGames = { viewModel.restoreSampleGames() },
                                 onDismissLaunchError = { viewModel.dismissLaunchError() },
                                 onBypassKeysAndLaunch = { viewModel.bypassKeysAndLaunch(it) }
                             )
@@ -271,9 +278,7 @@ fun EglantineApp(viewModel: EglantineViewModel) {
                                 },
                                 onScanFolderUri = { uri ->
                                     viewModel.scanFolderForRoms(context, uri)
-                                },
-                                onClearSampleGames = { viewModel.clearSampleGames() },
-                                onRestoreSampleGames = { viewModel.restoreSampleGames() }
+                                }
                             )
                         }
 

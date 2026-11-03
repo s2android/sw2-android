@@ -1,7 +1,6 @@
 package com.example.ui.screens
 
 import androidx.compose.foundation.background
-import androidx.compose.foundation.border
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
@@ -13,7 +12,6 @@ import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.lazy.LazyColumn
-import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Code
@@ -33,7 +31,7 @@ import androidx.compose.ui.text.font.FontFamily
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
-import com.example.ui.theme.DarkSurface
+import com.example.ui.theme.AccentSuccess
 import com.example.ui.theme.DarkSurfaceHighlight
 import com.example.ui.theme.DarkSurfaceVariant
 import com.example.ui.theme.EglantineCyan
@@ -82,13 +80,13 @@ fun Nx2ExplorerScreen(
                         }
                         Column {
                             Text(
-                                text = "NX2 Architecture Diagnostics",
+                                text = "NX2 Core Diagnostics (Build 104 / Lichii)",
                                 color = TextPrimary,
                                 fontSize = 16.sp,
                                 fontWeight = FontWeight.Bold
                             )
                             Text(
-                                text = "Nintendo Switch 2 Emulation Research (Eden/Eglantine)",
+                                text = "Synced with upstream zortos293/Eglantine (commit 29571ea9)",
                                 color = EglantineMagenta,
                                 fontSize = 11.sp
                             )
@@ -96,10 +94,73 @@ fun Nx2ExplorerScreen(
                     }
 
                     Text(
-                        text = "Eglantine investigates running Switch 2 binaries natively with ARMv8.2-A pointer authentication, LSE atomic instructions, 39-bit address spaces, and Ampere GPU pushbuffer pipeline splitting.",
+                        text = "Eglantine executes Switch 2 (NX2) binaries natively with ARMv8.2-A pointer authentication, LSE atomics, 39-bit address spaces, NX2 GSV sparse tile pre-free, and DLSS spatial upscale stand-in shaders.",
                         color = TextSecondary,
                         fontSize = 12.sp,
                         lineHeight = 17.sp
+                    )
+                }
+            }
+        }
+
+        // UPSTREAM ZORTOS293/EGLANTINE BUILD 104 / LICHII NX2 SUBSYSTEMS
+        item {
+            Row(
+                verticalAlignment = Alignment.CenterVertically,
+                horizontalArrangement = Arrangement.spacedBy(8.dp)
+            ) {
+                Icon(Icons.Default.Code, contentDescription = null, tint = EglantineCyan, modifier = Modifier.size(16.dp))
+                Text(
+                    text = "UPSTREAM BUILD 104 / LICHII NX2 MODULES",
+                    color = EglantineCyan,
+                    fontSize = 12.sp,
+                    fontWeight = FontWeight.Bold,
+                    letterSpacing = 1.sp
+                )
+            }
+        }
+
+        item {
+            Card(
+                modifier = Modifier.fillMaxWidth(),
+                shape = RoundedCornerShape(14.dp),
+                colors = CardDefaults.cardColors(containerColor = DarkSurfaceVariant)
+            ) {
+                Column(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .padding(14.dp),
+                    verticalArrangement = Arrangement.spacedBy(10.dp)
+                ) {
+                    UpstreamModuleItem(
+                        module = "nx2_gsv.h • Sparse Tile Pre-Free & EOS Drain",
+                        commit = "29571ea9 / aef27988",
+                        detail = "Frees non-resident sparse page tiles before GPU handoff and orders end-of-stream (EOS) frames in GSV presenter."
+                    )
+                    UpstreamModuleItem(
+                        module = "fire_emblem_upscale.h • DLSS Spatial Stand-In",
+                        commit = "e7a2835b / 3f0110e8",
+                        detail = "Replaces NX2 DLSS output pass (14b4222bbe23abee) & strips fractional camera jitter in prepass (4cbf6eff32525aec) for Fire Emblem: Fortune's Weave (04007EF01F8AE000)."
+                    )
+                    UpstreamModuleItem(
+                        module = "exclusive_monitor.cpp • ARM64 CAS Pre-Check",
+                        commit = "b408de16",
+                        detail = "Pre-checks exclusive monitor reservation before compare-and-swap, reducing multi-core cache-line contention from 10% to 2%."
+                    )
+                    UpstreamModuleItem(
+                        module = "vk_scheduler.cpp & pipeline_cache_files.h",
+                        commit = "2ce2fd4c / 780f1ca5",
+                        detail = "Isolates fork pipeline cache (vulkan.fork-v39.bin), widens 8-bit 0xFF->0xFFFF primitive restart indices, and guards VK_EXT_mesh_shader."
+                    )
+                    UpstreamModuleItem(
+                        module = "texture_cache_base.h • VMA Block Eviction",
+                        commit = "a5fbba67 / e7b16a6c",
+                        detail = "Tracks physical VMA block occupancy to evict sparse textures before Adreno VRAM fragmentation occurs."
+                    )
+                    UpstreamModuleItem(
+                        module = "host_memory.cpp & command_fetch_order.h",
+                        commit = "e4756178 / 6aa29909",
+                        detail = "Direct-map relative page-state indexing, >4KiB page Fastmem guard, and DMA pusher macro parameter snapshot guard."
                     )
                 }
             }
@@ -132,8 +193,9 @@ fun Nx2ExplorerScreen(
                     Nx2SpecItem(label = "CPU Cores", value = "6 CPU Cores (Mask 0x3F, Cores 0..5)")
                     Nx2SpecItem(label = "Virtual Address Space", value = "39-bit (512 GB Virtual Range)")
                     Nx2SpecItem(label = "Kernel Version Cap", value = "9.1 (SVC 0x01-0x36 + 0x80)")
-                    Nx2SpecItem(label = "Graphics Subsystem", value = "NVN2 / Ampere Architecture with Pushbuffer Thread Split")
+                    Nx2SpecItem(label = "Graphics Subsystem", value = "NVN2 / Ampere + GSV Sparse Pre-Free")
                     Nx2SpecItem(label = "Atomic Decoders", value = "LDAPR, CASP, RETAA/B, STG, XPAC, PACGA")
+                    Nx2SpecItem(label = "Audio Subsystem", value = "AAudio / AudioTrack 44.1kHz 16-bit PCM")
                 }
             }
         }
@@ -173,9 +235,9 @@ fun Nx2ExplorerScreen(
                     logs.forEach { log ->
                         Text(
                             text = log,
-                            color = if (log.contains("SVC")) EglantineCyan
-                            else if (log.contains("Pushbuffer")) EglantineMagenta
-                            else if (log.contains("Dynarmic")) Color(0xFFFFD54F)
+                            color = if (log.contains("SVC") || log.contains("[nx2_gsv]") || log.contains("[FE_Upscale]")) EglantineCyan
+                            else if (log.contains("Pushbuffer") || log.contains("[Pipeline]")) EglantineMagenta
+                            else if (log.contains("Dynarmic") || log.contains("[Audio]")) Color(0xFFFFD54F)
                             else Color(0xFFB0BEC5),
                             fontSize = 11.sp,
                             fontFamily = FontFamily.Monospace,
@@ -187,6 +249,56 @@ fun Nx2ExplorerScreen(
         }
 
         item { Spacer(modifier = Modifier.height(24.dp)) }
+    }
+}
+
+@Composable
+fun UpstreamModuleItem(
+    module: String,
+    commit: String,
+    detail: String
+) {
+    Column(
+        modifier = Modifier
+            .fillMaxWidth()
+            .clip(RoundedCornerShape(10.dp))
+            .background(DarkSurfaceHighlight)
+            .padding(10.dp),
+        verticalArrangement = Arrangement.spacedBy(4.dp)
+    ) {
+        Row(
+            modifier = Modifier.fillMaxWidth(),
+            horizontalArrangement = Arrangement.SpaceBetween,
+            verticalAlignment = Alignment.CenterVertically
+        ) {
+            Text(
+                text = module,
+                color = TextPrimary,
+                fontSize = 12.sp,
+                fontWeight = FontWeight.Bold,
+                modifier = Modifier.weight(1f)
+            )
+            Box(
+                modifier = Modifier
+                    .clip(RoundedCornerShape(4.dp))
+                    .background(Color(0x2200E676))
+                    .padding(horizontal = 6.dp, vertical = 2.dp)
+            ) {
+                Text(
+                    text = commit,
+                    color = AccentSuccess,
+                    fontSize = 9.sp,
+                    fontFamily = FontFamily.Monospace,
+                    fontWeight = FontWeight.Bold
+                )
+            }
+        }
+        Text(
+            text = detail,
+            color = TextSecondary,
+            fontSize = 11.sp,
+            lineHeight = 15.sp
+        )
     }
 }
 

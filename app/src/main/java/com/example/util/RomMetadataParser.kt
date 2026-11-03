@@ -59,9 +59,13 @@ object RomMetadataParser {
         "010056900C09E000" to Pair("Metroid Prime Remastered", "Retro Studios / Nintendo"),
         "010015500A494000" to Pair("Dragon Quest XI S: Echoes of an Elusive Age", "Square Enix"),
         "0100923005A68000" to Pair("Astral Chain", "PlatinumGames / Nintendo"),
+        "010099F01E65A000" to Pair("Tetris Forever", "Digital Eclipse"),
+        "010040600C5CE000" to Pair("Tetris 99", "Arika / Nintendo"),
 
-        // Switch 2 (NX2) Titles
+        // Switch 2 (NX2) Titles (from upstream zortos293/Eglantine)
         "0400C3F00006E000" to Pair("Mario Kart World", "Nintendo EPD"),
+        "04007EF01F8AE000" to Pair("Fire Emblem: Fortune's Weave", "Intelligent Systems / Nintendo"),
+        "0400D4B018C20000" to Pair("Donkey Kong Bananza", "Nintendo EPD"),
         "04005B902517C000" to Pair("Splatoon Raiders", "Nintendo"),
         "040089201A940000" to Pair("Super Mario Odyssey 2", "Nintendo"),
         "0400EF102B330000" to Pair("The Legend of Zelda: Chrono Shards", "Nintendo"),
@@ -122,12 +126,20 @@ object RomMetadataParser {
     }
 
     /**
-     * Parses a Game object from a selected URI or raw filename with accurate Title ID resolution.
+     * Parses a Game object from a selected URI or raw filename with accurate Title ID resolution
+     * and persists URI read permission across app restarts.
      */
     fun parseGameFromUri(context: Context, uri: Uri): Game {
+        try {
+            context.contentResolver.takePersistableUriPermission(
+                uri,
+                android.content.Intent.FLAG_GRANT_READ_URI_PERMISSION
+            )
+        } catch (_: Exception) {}
+
         val (fileName, sizeBytes) = getUriMetadata(context, uri)
         val sizeMb = if (sizeBytes > 0) sizeBytes / (1024 * 1024) else 4096L
-        return parseGameFromFileName(fileName, uri.toString(), sizeMb)
+        return parseGameFromFileName(fileName, uri.toString(), sizeMb).copy(uriString = uri.toString())
     }
 
     /**
@@ -196,7 +208,8 @@ object RomMetadataParser {
             isFavorite = false,
             description = if (isNx2) "Nintendo Switch 2 (NX2) title running on Ampere architecture."
             else "Nintendo Switch retail title running on Maxwell ARMv8 architecture.",
-            isSample = false
+            isSample = false,
+            boxArtUrl = BoxArtScraper.getInstantFallbackCoverUrl(cleanTitle, programId)
         )
     }
 
@@ -224,6 +237,12 @@ object RomMetadataParser {
     fun scanDocumentTree(context: Context, treeUri: Uri): List<Game> {
         val games = mutableListOf<Game>()
         try {
+            try {
+                context.contentResolver.takePersistableUriPermission(
+                    treeUri,
+                    android.content.Intent.FLAG_GRANT_READ_URI_PERMISSION
+                )
+            } catch (_: Exception) {}
             val childrenUri = DocumentsContract.buildChildDocumentsUriUsingTree(
                 treeUri,
                 DocumentsContract.getTreeDocumentId(treeUri)

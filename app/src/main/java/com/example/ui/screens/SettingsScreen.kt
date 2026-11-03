@@ -502,9 +502,9 @@ fun SettingsScreen(
             }
         }
 
-        // 6. NX2 SWITCH 2 EXPERIMENTAL ARCHITECTURE
+        // 6. NX2 SWITCH 2 EXPERIMENTAL ARCHITECTURE (BUILD 104 / LICHII NX2)
         item {
-            SettingsCategoryHeader(title = "NX2 (SWITCH 2) ENGINE ARCHITECTURE", icon = Icons.Default.Memory)
+            SettingsCategoryHeader(title = "NX2 (SWITCH 2) BUILD 104 / LICHII ARCHITECTURE", icon = Icons.Default.Memory)
         }
 
         item {
@@ -520,6 +520,55 @@ fun SettingsScreen(
                         .padding(14.dp),
                     verticalArrangement = Arrangement.spacedBy(12.dp)
                 ) {
+                    SettingToggleRow(
+                        title = "NX2 GSV Sparse Tile Pre-Free & EOS Drain",
+                        subtitle = "Frees non-resident sparse page tiles before GPU handoff & orders EOS frame drain (nx2_gsv.h)",
+                        checked = settings.nx2GsvSparsePreFree,
+                        onCheckedChange = { onSettingsChanged(settings.copy(nx2GsvSparsePreFree = it)) }
+                    )
+
+                    SettingToggleRow(
+                        title = "Fire Emblem Spatial Upscale Stand-In (DLSS)",
+                        subtitle = "EDEN_NX2_DLSS_STANDIN=1 • Replaces pass 14b4222bbe23abee + prepass 4cbf6eff32525aec de-jitter",
+                        checked = settings.feSpatialUpscaleStandin,
+                        onCheckedChange = { onSettingsChanged(settings.copy(feSpatialUpscaleStandin = it)) }
+                    )
+
+                    SettingToggleRow(
+                        title = "ARM64 Exclusive Monitor Reservation Pre-Check",
+                        subtitle = "Pre-checks reservation before CAS in exclusive_monitor.cpp (cuts multi-core contention 10% -> 2%)",
+                        checked = settings.arm64ReservationPreCheck,
+                        onCheckedChange = { onSettingsChanged(settings.copy(arm64ReservationPreCheck = it)) }
+                    )
+
+                    SettingToggleRow(
+                        title = "VMA Block-Aware Texture Eviction",
+                        subtitle = "Evicts sparse Vulkan allocations by VMA physical block pressure to prevent VRAM fragmentation",
+                        checked = settings.vmaBlockAwareEviction,
+                        onCheckedChange = { onSettingsChanged(settings.copy(vmaBlockAwareEviction = it)) }
+                    )
+
+                    SettingToggleRow(
+                        title = "Fork Pipeline Cache Isolation (vulkan.fork-v39.bin)",
+                        subtitle = "Isolates pipeline cache + widens 8-bit 0xFF->0xFFFF primitive restart indices (vk_scheduler.cpp)",
+                        checked = settings.forkPipelineCacheIsolation,
+                        onCheckedChange = { onSettingsChanged(settings.copy(forkPipelineCacheIsolation = it)) }
+                    )
+
+                    SettingToggleRow(
+                        title = "Command Fetch Order & Macro Snapshot Guard",
+                        subtitle = "Splits fence readback and snapshots macro parameters in dma_pusher.cpp",
+                        checked = settings.commandFetchSnapshotGuard,
+                        onCheckedChange = { onSettingsChanged(settings.copy(commandFetchSnapshotGuard = it)) }
+                    )
+
+                    SettingToggleRow(
+                        title = "16KiB Host Page Fastmem Guard",
+                        subtitle = "Relative page-state indexing + Fastmem guard on >4KiB page Android kernels (host_memory.cpp)",
+                        checked = settings.host16KbPageFastmemGuard,
+                        onCheckedChange = { onSettingsChanged(settings.copy(host16KbPageFastmemGuard = it)) }
+                    )
+
                     SettingToggleRow(
                         title = "Ampere GPU Thread Split",
                         subtitle = "Splits pushbuffer parsing and execution threads (from Eglantine nx2 branch)",
@@ -607,7 +656,7 @@ fun SettingsScreen(
 
         // 8. AUDIO SETTINGS
         item {
-            SettingsCategoryHeader(title = "AUDIO ENGINE", icon = Icons.Default.VolumeUp)
+            SettingsCategoryHeader(title = "AUDIO ENGINE (REAL-TIME 44.1KHZ PCM)", icon = Icons.Default.VolumeUp)
         }
 
         item {
@@ -620,8 +669,15 @@ fun SettingsScreen(
                     modifier = Modifier
                         .fillMaxWidth()
                         .padding(14.dp),
-                    verticalArrangement = Arrangement.spacedBy(10.dp)
+                    verticalArrangement = Arrangement.spacedBy(12.dp)
                 ) {
+                    SettingToggleRow(
+                        title = "Real-Time Game Audio & SFX Output",
+                        subtitle = "Synthesizes 44.1kHz 16-bit PCM background music and low-latency gameplay SFX via AudioTrack",
+                        checked = settings.audioOutputEnabled,
+                        onCheckedChange = { onSettingsChanged(settings.copy(audioOutputEnabled = it)) }
+                    )
+
                     Row(
                         modifier = Modifier.fillMaxWidth(),
                         horizontalArrangement = Arrangement.SpaceBetween,
@@ -629,7 +685,7 @@ fun SettingsScreen(
                     ) {
                         Column {
                             Text("Audio Output Backend", color = TextPrimary, fontSize = 13.sp, fontWeight = FontWeight.Bold)
-                            Text("Low latency AAudio backend", color = TextSecondary, fontSize = 11.sp)
+                            Text("Low latency AAudio / AudioTrack PCM stream", color = TextSecondary, fontSize = 11.sp)
                         }
                         Box(
                             modifier = Modifier

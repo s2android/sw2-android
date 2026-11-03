@@ -3,8 +3,11 @@ package com.example
 import android.content.Context
 import androidx.test.core.app.ApplicationProvider
 import com.example.data.EglantineRepository
+import com.example.model.AAAPreset
 import com.example.model.SnapdragonChipset
+import com.example.util.BoxArtScraper
 import org.junit.Assert.assertEquals
+import org.junit.Assert.assertNotNull
 import org.junit.Assert.assertTrue
 import org.junit.Test
 import org.junit.runner.RunWith
@@ -48,18 +51,38 @@ class ExampleRobolectricTest {
   }
 
   @Test
-  fun `verify default keys and roms state`() {
-    val repo = EglantineRepository()
-    val keysState = repo.keysFirmwareState.value
-    assertTrue("Keys state initialized", keysState.prodKeysInstalled)
-    val games = repo.games.value
-    assertTrue("Default games exist", games.isNotEmpty())
+  fun `verify demo games are removed and added games persist across restarts`() {
+    val context = ApplicationProvider.getApplicationContext<Context>()
+    val repo1 = EglantineRepository()
+    repo1.attachContext(context)
+    assertTrue("No demo games should exist by default", repo1.games.value.isEmpty())
+
+    // Add a user ROM and verify it persists in a fresh repository instance
+    val testGame = com.example.model.Game(
+      title = "Tetris Forever",
+      programId = "01007EF00011E000",
+      developer = "Digital Eclipse",
+      version = "1.0.2",
+      fileExtension = "nsp",
+      path = "Internal / Games / Tetris Forever.nsp",
+      isNx2 = false,
+      isSample = false,
+      boxArtUrl = BoxArtScraper.getInstantFallbackCoverUrl("Tetris Forever", "01007EF00011E000")
+    )
+    repo1.addCustomGame(testGame)
+    assertEquals(1, repo1.games.value.size)
+    assertNotNull("Box art URL should be resolved", repo1.games.value.first().boxArtUrl)
+
+    val repo2 = EglantineRepository()
+    repo2.attachContext(context)
+    assertEquals("Persisted game must be restored on restart", 1, repo2.games.value.size)
+    assertEquals("Tetris Forever", repo2.games.value.first().title)
   }
 
   @Test
-  fun `verify AAA preset application for Zelda TOTK`() {
+  fun `verify AAA preset application for Zelda TOTK and Fire Emblem Build 104`() {
     val repo = EglantineRepository()
-    repo.applyAAAPreset(com.example.model.AAAPreset.TOTK)
+    repo.applyAAAPreset(AAAPreset.TOTK)
     val settings = repo.settings.value
     assertEquals("Native Code Execution (NCE)", settings.cpuBackend)
     assertTrue("Fastmem must be enabled for TOTK", settings.fastmemEnabled)
@@ -68,12 +91,19 @@ class ExampleRobolectricTest {
     assertTrue("Reactive flushing must be enabled for Zelda bloom fix", settings.reactiveFlushing)
     assertEquals("BC7 (Fast)", settings.astcRecompression)
     assertEquals("turnip_8gen3_opt", repo.selectedDriverId.value)
+
+    // Test upstream zortos293/Eglantine Build 104 Fire Emblem preset
+    repo.applyAAAPreset(AAAPreset.FIRE_EMBLEM_FW)
+    val feSettings = repo.settings.value
+    assertTrue("FE spatial upscale stand-in must be enabled", feSettings.feSpatialUpscaleStandin)
+    assertTrue("NX2 GSV sparse tile pre-free must be enabled", feSettings.nx2GsvSparsePreFree)
+    assertTrue("ARM64 reservation pre-check must be enabled", feSettings.arm64ReservationPreCheck)
   }
 
   @Test
   fun `verify AAA preset application for Super Mario Odyssey`() {
     val repo = EglantineRepository()
-    repo.applyAAAPreset(com.example.model.AAAPreset.ODYSSEY)
+    repo.applyAAAPreset(AAAPreset.ODYSSEY)
     val settings = repo.settings.value
     assertEquals("Native Code Execution (NCE)", settings.cpuBackend)
     assertTrue("Fastmem must be enabled", settings.fastmemEnabled)
@@ -85,8 +115,8 @@ class ExampleRobolectricTest {
   fun `verify APK update info and download progress`() {
     val repo = EglantineRepository()
     val updateInfo = repo.updateInfo.value
-    assertEquals("v1.0.4", updateInfo.currentVersion)
-    assertTrue("New version available", updateInfo.latestVersion.contains("v1.2.0"))
+    assertEquals("v1.2.0", updateInfo.currentVersion)
+    assertTrue("New version available", updateInfo.latestVersion.contains("v1.3.0"))
     assertEquals(18.9f, updateInfo.apkFileSizeMb, 0.01f)
     assertEquals(com.example.model.ApkUpdateStatus.UPDATE_AVAILABLE, updateInfo.status)
 

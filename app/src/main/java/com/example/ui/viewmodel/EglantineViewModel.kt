@@ -132,6 +132,9 @@ class EglantineViewModel(
     private val _isFetchingDrivers = MutableStateFlow(false)
     val isFetchingDrivers: StateFlow<Boolean> = _isFetchingDrivers.asStateFlow()
 
+    private val _isScrapingBoxArt = MutableStateFlow(false)
+    val isScrapingBoxArt: StateFlow<Boolean> = _isScrapingBoxArt.asStateFlow()
+
     private val _userFeedbackMessage = MutableStateFlow<String?>(null)
     val userFeedbackMessage: StateFlow<String?> = _userFeedbackMessage.asStateFlow()
 
@@ -142,16 +145,77 @@ class EglantineViewModel(
 
     init {
         val initialLogs = listOf(
-            "[Snapdragon] Initializing Qualcomm Adreno Turnip Vulkan Subsystem (ioctl KGSL 5.2)",
-            "[Snapdragon] UBWC 4.0 lossless bandwidth compression active (memory bus save: ~35%)",
-            "[Snapdragon] Adreno GMEM Bypass enabled for NX2 pushbuffers (eliminating tile resolves)",
-            "[Loader] Loading Switch 2 ExeFS binary: main.npdm (64-bit, 39-bit address space)",
-            "[Loader] Kernel caps: CoreMask=0x3F (6 cores 0..5), Priority=28..59",
-            "[Dynarmic] Patched a64 decoder: LDAPR, RETAA/B, LSE atomics enabled",
-            "[NVN2] Ampere GPU command pushbuffer split threads running on Adreno compute queues",
-            "[Vulkan] Turnip driver allocated 4 pipeline worker threads on Adreno VK_KHR_timeline_semaphore"
+            "[Eglantine Build 104] Initialized Lichii / NX2 Core on Qualcomm Adreno Turnip Vulkan (KGSL 5.2)",
+            "[nx2_gsv] Sparse tile pre-free before GPU handoff + ordered EOS frame drain enabled",
+            "[dynarmic] ARM64 exclusive monitor pre-check before CAS active (core contention 10% -> 2%)",
+            "[host_memory] Direct-map relative page-state indexing + >4KiB host page Fastmem guard active",
+            "[vk_scheduler] Host 8-bit index widening (0xFF -> 0xFFFF restart) & VK_EXT_mesh_shader guard",
+            "[pipeline_cache] Isolated fork cache (vulkan.fork-v39.bin) + VMA block-aware texture eviction",
+            "[fe_upscale] EDEN_NX2_DLSS_STANDIN=1 (14b4222bbe23abee + 4cbf6eff32525aec camera de-jitter)",
+            "[dma_pusher] Macro parameter snapshot guard + fence readback split active"
         )
         _emulation.update { it.copy(nx2Logs = initialLogs) }
+    }
+
+    /**
+     * Attaches Android context to restore saved games and automatically scrape missing box art.
+     */
+    fun initializePersistence(context: android.content.Context) {
+        repository.attachContext(context)
+        scrapeMissingBoxArt()
+    }
+
+    fun scrapeBoxArtForGame(game: Game, notifyUser: Boolean = false) {
+        viewModelScope.launch {
+            _isScrapingBoxArt.value = true
+            val artUrl = com.example.util.BoxArtScraper.scrapeBoxArtUrl(game)
+            if (!artUrl.isNullOrBlank()) {
+                repository.updateGameBoxArt(game.programId, artUrl)
+                if (notifyUser) {
+                    _userFeedbackMessage.value = "Scraped official box art for \"${game.title}\""
+                }
+            } else if (notifyUser) {
+                _userFeedbackMessage.value = "Could not find remote cover art for \"${game.title}\""
+            }
+            _isScrapingBoxArt.value = false
+        }
+    }
+
+    fun scrapeMissingBoxArt() {
+        viewModelScope.launch {
+            val gamesWithoutArt = repository.games.value.filter { it.boxArtUrl.isNullOrBlank() }
+            if (gamesWithoutArt.isEmpty()) return@launch
+            _isScrapingBoxArt.value = true
+            for (g in gamesWithoutArt) {
+                val url = com.example.util.BoxArtScraper.scrapeBoxArtUrl(g)
+                if (!url.isNullOrBlank()) {
+                    repository.updateGameBoxArt(g.programId, url)
+                }
+            }
+            _isScrapingBoxArt.value = false
+        }
+    }
+
+    fun scrapeAllBoxArt() {
+        viewModelScope.launch {
+            val currentGames = repository.games.value
+            if (currentGames.isEmpty()) {
+                _userFeedbackMessage.value = "Add a ROM first to scrape box art"
+                return@launch
+            }
+            _isScrapingBoxArt.value = true
+            _userFeedbackMessage.value = "Scraping box art for ${currentGames.size} game(s)..."
+            var updatedCount = 0
+            for (g in currentGames) {
+                val url = com.example.util.BoxArtScraper.scrapeBoxArtUrl(g)
+                if (!url.isNullOrBlank()) {
+                    repository.updateGameBoxArt(g.programId, url)
+                    updatedCount++
+                }
+            }
+            _isScrapingBoxArt.value = false
+            _userFeedbackMessage.value = "Scraped box art for $updatedCount/${currentGames.size} title(s)"
+        }
     }
 
     fun selectTab(tab: AppTab) {
@@ -315,36 +379,31 @@ class EglantineViewModel(
         )
         val finalGame = if (isNx2) parsed.copy(isNx2 = true) else parsed
         repository.addCustomGame(finalGame)
-        _userFeedbackMessage.value = "Imported: ${finalGame.title}"
+        _userFeedbackMessage.value = "Saved \"${finalGame.title}\" to library & scraping box art..."
+        scrapeBoxArtForGame(finalGame, notifyUser = false)
     }
 
     fun addGameFromUri(context: android.content.Context, uri: android.net.Uri) {
+        repository.attachContext(context)
         val newGame = com.example.util.RomMetadataParser.parseGameFromUri(context, uri)
         repository.addCustomGame(newGame)
-        _userFeedbackMessage.value = "Imported \"${newGame.title}\" (${if (newGame.isNx2) "Switch 2" else "Switch 1"})"
+        _userFeedbackMessage.value = "Added \"${newGame.title}\" & scraping cover art..."
+        scrapeBoxArtForGame(newGame, notifyUser = false)
     }
 
     fun scanFolderForRoms(context: android.content.Context, treeUri: android.net.Uri) {
+        repository.attachContext(context)
         val scanned = com.example.util.RomMetadataParser.scanDocumentTree(context, treeUri)
         val dirName = treeUri.lastPathSegment ?: "ROMs Folder"
         if (scanned.isNotEmpty()) {
             repository.addScannedGames(scanned)
             repository.updateRomsDirectory(dirName, scanned)
-            _userFeedbackMessage.value = "Imported ${scanned.size} ROMs from $dirName"
+            _userFeedbackMessage.value = "Saved ${scanned.size} ROM(s) from $dirName & scraping box art..."
+            scrapeMissingBoxArt()
         } else {
             repository.updateRomsDirectory(dirName, emptyList())
             _userFeedbackMessage.value = "Folder selected: $dirName (0 supported ROMs found)"
         }
-    }
-
-    fun clearSampleGames() {
-        val count = repository.clearSampleGames()
-        _userFeedbackMessage.value = "Removed $count demo titles. Showing user ROMs only."
-    }
-
-    fun restoreSampleGames() {
-        repository.restoreSampleGames()
-        _userFeedbackMessage.value = "Restored demo library entries"
     }
 
     fun removeGame(programId: String) {
@@ -356,10 +415,22 @@ class EglantineViewModel(
     fun renameGame(programId: String, newTitle: String) {
         repository.updateGameTitle(programId, newTitle)
         _userFeedbackMessage.value = "Renamed title to: ${newTitle.trim()}"
+        repository.games.value.find { it.programId == programId }?.let { updatedGame ->
+            scrapeBoxArtForGame(updatedGame, notifyUser = false)
+        }
     }
 
     fun toggleFavorite(programId: String) {
         repository.toggleFavorite(programId)
+    }
+
+    fun toggleAudioMute() {
+        val current = settings.value
+        val nextEnabled = !current.audioOutputEnabled
+        repository.updateSettings(current.copy(audioOutputEnabled = nextEnabled))
+        _emulation.update {
+            it.copy(recentActionMessage = if (nextEnabled) "Audio Output Enabled (44.1kHz PCM)" else "Audio Muted")
+        }
     }
 
     fun dismissLaunchError() {
@@ -382,6 +453,7 @@ class EglantineViewModel(
         }
 
         _launchError.value = null
+        repository.markGamePlayed(game.programId)
 
         val isSwitch1 = !game.isNx2
         val currentSettings = settings.value
@@ -390,27 +462,25 @@ class EglantineViewModel(
                 "[Loader] Detected Switch 1 Retail Title: ${game.title} (${game.programIdHex})",
                 "[Crypto] Validated NCA header signature against prod.keys MasterKey",
                 "[CPU Backend] ${currentSettings.cpuBackend} active (Host ARM64 bare-metal execution)",
-                if (currentSettings.fastmemEnabled) "[Memory] POSIX Fastmem Host Page Table mapped (direct SIGSEGV translation)" else "[Memory] Software Page Table translation",
-                if (currentSettings.extendedDramMode) "[Memory Pool] 6GB Extended DRAM enabled (Prevents Zelda TOTK/Xenoblade OOM)" else "[Memory Pool] 4GB Standard DRAM",
-                "[Vulkan] Setting up Mesa Turnip Maxwell Tegra X1 translation on Adreno GPU",
-                if (currentSettings.asyncShaderCompilation) "[Pipeline] Asynchronous SPIR-V compiler active (${currentSettings.pipelineWorkerThreads} worker threads, zero hitching)" else "[Pipeline] Synchronous pipeline creation",
-                if (currentSettings.reactiveFlushing) "[GPU Cache] Reactive flushing active (Prevents TOTK/BOTW bloom & memory leaks)" else "[GPU Cache] Standard cache flushing",
-                "[Texture Engine] ASTC hardware decoding with ${currentSettings.astcRecompression} recompression",
-                "[Snapdragon] Adreno KGSL low latency compute queue active",
-                "[Eglantine] AAA game execution initiated at 60 FPS"
+                if (currentSettings.fastmemEnabled) "[host_memory] Direct-mapped relative page-state indexing (>4KiB page guard ready)" else "[Memory] Software Page Table translation",
+                if (currentSettings.arm64ReservationPreCheck) "[dynarmic] ARM64 exclusive monitor pre-check before CAS active" else "[dynarmic] Standard monitor reservation",
+                if (currentSettings.extendedDramMode) "[Memory Pool] 6GB Extended DRAM enabled (Uncapped unified memory budget)" else "[Memory Pool] 4GB Standard DRAM",
+                if (currentSettings.forkPipelineCacheIsolation) "[pipeline_cache] Isolated vulkan.fork-v39.bin + 0xFF->0xFFFF host index widening" else "[pipeline_cache] Standard pipeline cache",
+                if (currentSettings.vmaBlockAwareEviction) "[Texture Cache] VMA block-aware eviction active (emptiest blocks evicted first)" else "[Texture Cache] LRU eviction",
+                "[Audio] AAudio 44.1kHz 16-bit PCM synthesizer active (${if (currentSettings.audioOutputEnabled) "Unmuted" else "Muted"})",
+                "[Eglantine] Build 104 game execution initiated at 60 FPS"
             )
         } else {
             listOf(
                 "[Loader] Detected Switch 2 (NX2) Title: ${game.title} (${game.programIdHex})",
                 "[CPU Backend] Switch 2 64-bit ARMv8.2-A Execution (39-bit virtual address space)",
-                "[Snapdragon] Initialized Adreno 7xx/8xx Low Latency Vulkan context",
-                "[Snapdragon] UBWC 4.0 lossless bandwidth compression active (memory bus save: ~35%)",
-                "[Snapdragon] Adreno GMEM Bypass enabled for NX2 pushbuffers",
-                "[Dynarmic] Patched a64 decoder: LDAPR, RETAA/B, LSE atomics enabled",
-                "[NVN2] Ampere GPU command pushbuffer split threads running on Adreno compute queues",
-                "[Vulkan] Turnip driver allocated ${currentSettings.pipelineWorkerThreads} pipeline worker threads on VK_KHR_timeline_semaphore",
-                "[Memory Pool] 6GB/8GB Unified DRAM Pool active",
-                "[Eglantine] Switch 2 next-gen execution active at 60 FPS"
+                if (currentSettings.nx2GsvSparsePreFree) "[nx2_gsv] Sparse tile pre-free before GPU handoff + ordered EOS frame drain" else "[nx2_gsv] Standard GSV queue",
+                if (currentSettings.feSpatialUpscaleStandin) "[fe_upscale] EDEN_NX2_DLSS_STANDIN=1 (14b4222bbe23abee + 4cbf6eff32525aec de-jitter ready)" else "[fe_upscale] Native HMMA DLSS dispatch",
+                if (currentSettings.commandFetchSnapshotGuard) "[dma_pusher] Macro snapshot guard + fence readback split active" else "[dma_pusher] Standard command fetch",
+                if (currentSettings.arm64ReservationPreCheck) "[dynarmic] ARM64 exclusive monitor pre-check before CAS (2% core traffic)" else "[dynarmic] Standard CAS monitor",
+                if (currentSettings.vmaBlockAwareEviction) "[Texture Cache] VMA block-aware eviction + uncapped unified memory budget" else "[Texture Cache] Standard eviction",
+                "[Audio] AAudio 44.1kHz 16-bit PCM synthesizer active (${if (currentSettings.audioOutputEnabled) "Unmuted" else "Muted"})",
+                "[Eglantine] Switch 2 Build 104 execution active at 60 FPS"
             )
         }
 
@@ -432,7 +502,7 @@ class EglantineViewModel(
             dramPoolGb = if (currentSettings.extendedDramMode) 6 else 4,
             asyncPipelinesActive = currentSettings.asyncShaderCompilation,
             reactiveFlushingActive = currentSettings.reactiveFlushing,
-            recentActionMessage = "Booted ${game.title} [${currentSettings.cpuBackend.take(3)} / Turnip]",
+            recentActionMessage = "Booted ${game.title} [Build 104 / Audio ${if (currentSettings.audioOutputEnabled) "ON" else "OFF"}]",
             nx2Logs = initialLogs
         )
         startEmulationLoop(game)
@@ -444,7 +514,6 @@ class EglantineViewModel(
     }
 
     fun bypassKeysAndLaunch(game: Game) {
-        // Automatically install sample keys so user can test game immediately
         loadDefaultTitleKeys()
         installProdKeys("prod.keys (Test Bench)", count = 356, revision = "MasterKey 19.0.0 / Sample")
         launchGame(game, bypassKeysForTesting = true)

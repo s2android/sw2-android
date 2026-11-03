@@ -25,6 +25,8 @@ import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.ArrowBack
+import androidx.compose.material.icons.automirrored.filled.VolumeOff
+import androidx.compose.material.icons.automirrored.filled.VolumeUp
 import androidx.compose.material.icons.filled.CameraAlt
 import androidx.compose.material.icons.filled.MoreVert
 import androidx.compose.material.icons.filled.Pause
@@ -82,6 +84,7 @@ fun EmulationScreen(
     onPause: () -> Unit,
     onResume: () -> Unit,
     onToggleDocked: () -> Unit,
+    onToggleAudio: () -> Unit = {},
     onSaveState: () -> Unit,
     onLoadState: (String) -> Unit,
     onScreenshot: () -> Unit,
@@ -126,6 +129,7 @@ fun EmulationScreen(
             isNx2 = runtime.game?.isNx2 == true,
             isPaused = runtime.isPaused,
             isDocked = runtime.isDocked,
+            audioEnabled = settings.audioOutputEnabled,
             lastInputCommand = lastInputCommand,
             inputEventCounter = inputEventCounter,
             leftStickX = leftStickX,
@@ -186,11 +190,22 @@ fun EmulationScreen(
                     }
                 }
 
-                // Quick actions: Docked toggle, Pause/Resume, Menu
+                // Quick actions: Audio Mute/Unmute, Docked toggle, Pause/Resume, Menu
                 Row(
                     verticalAlignment = Alignment.CenterVertically,
                     horizontalArrangement = Arrangement.spacedBy(2.dp)
                 ) {
+                    IconButton(
+                        onClick = onToggleAudio,
+                        modifier = Modifier.testTag("btn_toggle_audio")
+                    ) {
+                        Icon(
+                            imageVector = if (settings.audioOutputEnabled) Icons.AutoMirrored.Filled.VolumeUp else Icons.AutoMirrored.Filled.VolumeOff,
+                            contentDescription = "Toggle Game Audio",
+                            tint = if (settings.audioOutputEnabled) Color(0xFF69F0AE) else Color(0xFFFF5252)
+                        )
+                    }
+
                     IconButton(
                         onClick = onToggleDocked,
                         modifier = Modifier.testTag("btn_toggle_docked")

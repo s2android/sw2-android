@@ -99,6 +99,7 @@ fun PlayableGameEngineViewport(
     isNx2: Boolean,
     isPaused: Boolean,
     isDocked: Boolean,
+    audioEnabled: Boolean = true,
     lastInputCommand: String,
     inputEventCounter: Long,
     leftStickX: Float,
@@ -108,8 +109,22 @@ fun PlayableGameEngineViewport(
 ) {
     val genre = remember(gameTitle) { detectGameGenre(gameTitle) }
     val textMeasurer = rememberTextMeasurer()
+    val audioEngine = remember { com.example.audio.SwitchAudioEngine() }
 
-    // Boot sequence state: 0 = NCA/XCI Header Mount (0.8s), 1 = Nintendo Switch Boot Splash (0.9s), 2 = Live Interactive Game
+    // Keep audio engine mute/pause state synchronized
+    LaunchedEffect(audioEnabled, isPaused) {
+        audioEngine.isMuted = !audioEnabled
+        audioEngine.isPaused = isPaused
+    }
+
+    // Ensure AudioTrack resources are stopped and released when leaving emulation screen
+    androidx.compose.runtime.DisposableEffect(Unit) {
+        onDispose {
+            audioEngine.stopMusicLoop()
+        }
+    }
+
+    // Boot sequence state: 0 = NCA/XCI Header Mount (0.65s), 1 = Nintendo Switch Boot Splash (0.75s), 2 = Live Interactive Game
     var bootStage by remember(gameTitle) { mutableIntStateOf(0) }
     var frameTick by remember { mutableLongStateOf(0L) }
     var animTime by remember { mutableFloatStateOf(0f) }
@@ -118,8 +133,10 @@ fun PlayableGameEngineViewport(
         bootStage = 0
         delay(650)
         bootStage = 1
+        audioEngine.playBootChime()
         delay(750)
         bootStage = 2
+        audioEngine.startMusicLoop(genre)
     }
 
     // --- TETRIS ENGINE STATE ---
@@ -199,6 +216,7 @@ fun PlayableGameEngineViewport(
                 else -> 800 * tetrisLevel
             }
             tetrisLevel = 1 + (tetrisLines / 10)
+            audioEngine.playScoreOrLineClear()
         }
         currentPiece = TETROMINO_SHAPES[nextPieceIdx]
         nextPieceIdx = Random.nextInt(TETROMINO_SHAPES.size)
@@ -222,23 +240,31 @@ fun PlayableGameEngineViewport(
     var gameScoreOrCoins by remember(gameTitle) { mutableIntStateOf(24) }
     var cameraYaw by remember(gameTitle) { mutableFloatStateOf(0f) }
 
-    // Handle discrete button presses from GamepadOverlay
+    // Handle discrete button presses from GamepadOverlay with instant PCM SFX
     LaunchedEffect(inputEventCounter) {
         if (inputEventCounter == 0L || isPaused || bootStage < 2) return@LaunchedEffect
         when (genre) {
             ActiveGameGenre.TETRIS -> {
                 when (lastInputCommand) {
                     "DPAD_LEFT", "L" -> {
-                        if (canPlacePiece(currentPiece, pieceX - 1, pieceY)) pieceX--
+                        if (canPlacePiece(currentPiece, pieceX - 1, pieceY)) {
+                            pieceX--
+                            audioEngine.playMoveTick()
+                        }
                     }
                     "DPAD_RIGHT", "R" -> {
-                        if (canPlacePiece(currentPiece, pieceX + 1, pieceY)) pieceX++
+                        if (canPlacePiece(currentPiece, pieceX + 1, pieceY)) {
+                            pieceX++
+                            audioEngine.playMoveTick()
+                        }
                     }
                     "DPAD_DOWN", "B" -> {
                         if (canPlacePiece(currentPiece, pieceX, pieceY + 1)) {
                             pieceY++
                             tetrisScore += 2
+                            audioEngine.playMoveTick()
                         } else {
+                            audioEngine.playDropOrAction()
                             lockAndSpawnPiece()
                         }
                     }
@@ -246,12 +272,15 @@ fun PlayableGameEngineViewport(
                         val rotated = rotateMatrixCW(currentPiece)
                         if (canPlacePiece(rotated, pieceX, pieceY)) {
                             currentPiece = rotated
+                            audioEngine.playRotateOrJump()
                         } else if (canPlacePiece(rotated, pieceX - 1, pieceY)) {
                             pieceX -= 1
                             currentPiece = rotated
+                            audioEngine.playRotateOrJump()
                         } else if (canPlacePiece(rotated, pieceX + 1, pieceY)) {
                             pieceX += 1
                             currentPiece = rotated
+                            audioEngine.playRotateOrJump()
                         }
                     }
                     "Y", "ZL", "ZR" -> {
@@ -262,26 +291,39 @@ fun PlayableGameEngineViewport(
                             dropped++
                         }
                         tetrisScore += dropped * 4
+                        audioEngine.playDropOrAction()
                         lockAndSpawnPiece()
                     }
                 }
             }
             else -> {
                 when (lastInputCommand) {
-                    "DPAD_LEFT" -> playerX = (playerX - 0.16f).coerceIn(-0.85f, 0.85f)
-                    "DPAD_RIGHT" -> playerX = (playerX + 0.16f).coerceIn(-0.85f, 0.85f)
-                    "DPAD_UP" -> speedBoostTimer = 35
+                    "DPAD_LEFT" -> {
+                        playerX = (playerX - 0.16f).coerceIn(-0.85f, 0.85f)
+                        audioEngine.playMoveTick()
+                    }
+                    "DPAD_RIGHT" -> {
+                        playerX = (playerX + 0.16f).coerceIn(-0.85f, 0.85f)
+                        audioEngine.playMoveTick()
+                    }
+                    "DPAD_UP" -> {
+                        speedBoostTimer = 35
+                        audioEngine.playRotateOrJump()
+                    }
                     "B", "A" -> {
                         if (playerJumpHeight <= 0.01f) {
                             playerJumpVel = 14f
+                            audioEngine.playRotateOrJump()
                         }
                         if (genre == ActiveGameGenre.RACING) {
                             speedBoostTimer = 45
+                            audioEngine.playDropOrAction()
                         }
                     }
-                    "Y", "X", "ZR", "R" -> {
+                    "Y", "X", "ZR", "R", "ZL", "L" -> {
                         attackSlashTimer = 20
                         gameScoreOrCoins += 1
+                        audioEngine.playDropOrAction()
                     }
                 }
             }

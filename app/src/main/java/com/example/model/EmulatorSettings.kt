@@ -58,6 +58,30 @@ enum class AAAPreset(
         targetGame = "Monster Hunter Rise",
         recommendedDriverId = "turnip_8gen3_opt",
         description = "Optimized for dense RE Engine geometry and dynamic lighting effects on Qualcomm Adreno."
+    ),
+    MARIO_KART_WORLD(
+        id = "mkw_nx2",
+        title = "Mario Kart World [NX2 Build 104]",
+        subtitle = "VMA Block Eviction + ARM64 CAS Pre-Check + Fence Split",
+        targetGame = "Mario Kart World",
+        recommendedDriverId = "freedreno_nx2_exp",
+        description = "Upstream zortos293/Eglantine Build 104 profile: VMA block-aware texture eviction (eliminates 3000-texture race thrashing), ARM64 exclusive monitor CAS pre-check (cuts core contention from 10% to 2%), and fence readback sync."
+    ),
+    FIRE_EMBLEM_FW(
+        id = "fe_fortunes_weave",
+        title = "Fire Emblem: Fortune's Weave [NX2]",
+        subtitle = "EDEN_NX2_DLSS_STANDIN=1 + 4cbf6eff32525aec De-Jitter",
+        targetGame = "Fire Emblem: Fortune's Weave",
+        recommendedDriverId = "freedreno_nx2_exp",
+        description = "Upstream zortos293/Eglantine fix for title 04007EF01F8AE000: routes program fingerprint 14b4222bbe23abee through spatial upscale stand-in with fractional-pixel camera jitter compensation."
+    ),
+    DK_BANANZA(
+        id = "dk_bananza",
+        title = "Donkey Kong Bananza [NX2]",
+        subtitle = "DMA Macro Snapshot Guard + Host 8-Bit Index Widening",
+        targetGame = "Donkey Kong Bananza",
+        recommendedDriverId = "freedreno_nx2_exp",
+        description = "Upstream render11 DMA pusher fix: rejects submission snapshots after continued macro parameters are downloaded and widens 0xFF primitive restart indices to 0xFFFF."
     )
 }
 
@@ -89,13 +113,20 @@ data class EmulatorSettings(
     val snapdragonUbwcCompression: Boolean = true,
     val snapdragonKgslFastPath: Boolean = true,
 
-    // NX2 Experimental Architecture
+    // NX2 Experimental Architecture & Upstream zortos293/Eglantine Build 104 Fixes
     val nx2AmpereThreadSplit: Boolean = true,
     val nx2LdaprDecoding: Boolean = true,
     val nx2LseAtomics: Boolean = true,
     val nx2PacAuth: Boolean = true,
     val nx2AddressSpace39Bit: Boolean = true,
     val nx2CoresAllocated: Int = 6,
+    val feSpatialUpscaleStandin: Boolean = true, // EDEN_NX2_DLSS_STANDIN=1 (14b4222bbe23abee + 4cbf6eff32525aec de-jitter)
+    val vmaBlockAwareEviction: Boolean = true, // Order texture eviction by VMA block fill & uncapped unified memory budget
+    val forkPipelineCacheIsolation: Boolean = true, // vulkan.fork-v39.bin isolated cache + 0xFF -> 0xFFFF host index widening
+    val arm64ReservationPreCheck: Boolean = true, // Check exclusive monitor before CAS on arm64 (cuts core traffic 10% -> 2%)
+    val nx2GsvSparsePreFree: Boolean = true, // Free released regions before handing sparse maps to GPU thread + EOS frame order
+    val commandFetchSnapshotGuard: Boolean = true, // Reject DMA snapshots after continued macro params + fence readback split
+    val host16KbPageFastmemGuard: Boolean = true, // Relative page-state indexing & Fastmem guard on >4KiB host pages
 
     // Controls & Overlay
     val showInputOverlay: Boolean = true,
@@ -105,7 +136,8 @@ data class EmulatorSettings(
     val showStatsOverlay: Boolean = true,
 
     // Audio
-    val audioEngine: String = "AAudio",
+    val audioOutputEnabled: Boolean = true,
+    val audioEngine: String = "AAudio (Low-Latency PCM 44.1kHz)",
     val audioVolume: Float = 1.0f,
 
     // Currently Applied AAA Profile

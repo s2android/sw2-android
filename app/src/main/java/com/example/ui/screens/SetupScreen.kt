@@ -75,9 +75,7 @@ fun SetupScreen(
     onSelectRomsDirectory: (dirPath: String) -> Unit,
     onAddCustomGame: (title: String, ext: String, isNx2: Boolean) -> Unit,
     onAddGameUri: ((Uri) -> Unit)? = null,
-    onScanFolderUri: ((Uri) -> Unit)? = null,
-    onClearSampleGames: (() -> Unit)? = null,
-    onRestoreSampleGames: (() -> Unit)? = null
+    onScanFolderUri: ((Uri) -> Unit)? = null
 ) {
     var showAddGameDialog by remember { mutableStateOf(false) }
     var showHelpDialog by remember { mutableStateOf(false) }
@@ -562,36 +560,6 @@ fun SetupScreen(
                             .testTag("btn_custom_rom_entry")
                     ) {
                         Text("Add Custom Switch / Switch 2 ROM Entry", fontSize = 12.sp)
-                    }
-
-                    // Demo / Sample Library Management
-                    Row(
-                        modifier = Modifier.fillMaxWidth(),
-                        horizontalArrangement = Arrangement.spacedBy(8.dp)
-                    ) {
-                        if (onClearSampleGames != null) {
-                            OutlinedButton(
-                                onClick = onClearSampleGames,
-                                colors = ButtonDefaults.outlinedButtonColors(contentColor = Color(0xFFFF5252)),
-                                border = androidx.compose.foundation.BorderStroke(1.dp, Color(0x66FF5252)),
-                                shape = RoundedCornerShape(8.dp),
-                                modifier = Modifier.weight(1f)
-                            ) {
-                                Text("Clear Demo Games", fontSize = 11.sp)
-                            }
-                        }
-
-                        if (onRestoreSampleGames != null) {
-                            OutlinedButton(
-                                onClick = onRestoreSampleGames,
-                                colors = ButtonDefaults.outlinedButtonColors(contentColor = EglantineCyan),
-                                border = androidx.compose.foundation.BorderStroke(1.dp, Color(0x6600E5FF)),
-                                shape = RoundedCornerShape(8.dp),
-                                modifier = Modifier.weight(1f)
-                            ) {
-                                Text("Restore Demo Games", fontSize = 11.sp)
-                            }
-                        }
                     }
                 }
             }
