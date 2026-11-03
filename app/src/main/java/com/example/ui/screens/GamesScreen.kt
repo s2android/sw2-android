@@ -3,7 +3,7 @@ package com.example.ui.screens
 import android.net.Uri
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.contract.ActivityResultContracts
-import androidx.compose.foundation.Image
+import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
@@ -38,13 +38,13 @@ import androidx.compose.material.icons.filled.Info
 import androidx.compose.material.icons.filled.MoreVert
 import androidx.compose.material.icons.filled.PlayArrow
 import androidx.compose.material.icons.filled.Search
+import androidx.compose.material.icons.filled.Security
 import androidx.compose.material.icons.filled.SportsEsports
 import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.Button
 import androidx.compose.material3.ButtonDefaults
 import androidx.compose.material3.Card
 import androidx.compose.material3.CardDefaults
-import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.DropdownMenu
 import androidx.compose.material3.DropdownMenuItem
 import androidx.compose.material3.FilterChip
@@ -68,23 +68,27 @@ import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.platform.testTag
-import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import coil.compose.SubcomposeAsyncImage
-import com.example.R
 import com.example.model.Game
 import com.example.model.VulkanDriver
+import com.example.ui.components.GlassActionPill
+import com.example.ui.components.GlowingGlassIcon
+import com.example.ui.components.IosGlassSurface
 import com.example.ui.theme.AccentSuccess
 import com.example.ui.theme.DarkSurface
 import com.example.ui.theme.DarkSurfaceHighlight
-import com.example.ui.theme.DarkSurfaceVariant
 import com.example.ui.theme.EglantineCyan
 import com.example.ui.theme.EglantineMagenta
-import com.example.ui.theme.EglantineViolet
+import com.example.ui.theme.GlowAmber
+import com.example.ui.theme.GlowCyan
+import com.example.ui.theme.GlowEmerald
+import com.example.ui.theme.GlowPink
+import com.example.ui.theme.GlowPurple
 import com.example.ui.theme.TextPrimary
 import com.example.ui.theme.TextSecondary
 import com.example.ui.viewmodel.GameFilter
@@ -147,12 +151,13 @@ fun GamesScreen(
             .fillMaxSize()
             .testTag("games_screen_list")
             .padding(horizontal = 16.dp),
-        verticalArrangement = Arrangement.spacedBy(14.dp)
+        verticalArrangement = Arrangement.spacedBy(12.dp)
     ) {
-        // TOP HERO BANNER
+        // 1. SIMPLIFIED IPHONE GLASS QUICK ACTION HEADER
         item {
             HeroBannerCard(
                 activeDriver = activeDriver,
+                isScrapingBoxArt = isScrapingBoxArt,
                 onAddGame = {
                     try {
                         romFileLauncher.launch(arrayOf("*/*"))
@@ -167,80 +172,46 @@ fun GamesScreen(
                         onOpenSetup()
                     }
                 },
-                onConfigure = onOpenSetup
+                onScrapeBoxArt = onScrapeAllBoxArt
             )
         }
 
-        // SEARCH BAR & BOX ART SCRAPER ACTION BAR
+        // 2. IOS SPOTLIGHT-STYLE FROSTED GLASS SEARCH PILL
         item {
-            Row(
-                modifier = Modifier.fillMaxWidth(),
-                horizontalArrangement = Arrangement.spacedBy(8.dp),
-                verticalAlignment = Alignment.CenterVertically
-            ) {
-                OutlinedTextField(
-                    value = searchQuery,
-                    onValueChange = onSearchChanged,
-                    modifier = Modifier
-                        .weight(1f)
-                        .testTag("search_games_input"),
-                    placeholder = { Text("Search your saved Switch & NX2 games…", color = TextSecondary, fontSize = 13.sp) },
-                    leadingIcon = {
-                        Icon(
-                            imageVector = Icons.Default.Search,
-                            contentDescription = "Search",
-                            tint = EglantineMagenta
-                        )
-                    },
-                    singleLine = true,
-                    colors = OutlinedTextFieldDefaults.colors(
-                        focusedBorderColor = EglantineMagenta,
-                        unfocusedBorderColor = Color(0x55E040FB),
-                        focusedContainerColor = DarkSurfaceVariant,
-                        unfocusedContainerColor = DarkSurfaceVariant,
-                        focusedTextColor = TextPrimary,
-                        unfocusedTextColor = TextPrimary
-                    ),
-                    shape = RoundedCornerShape(14.dp)
-                )
-
-                Button(
-                    onClick = onScrapeAllBoxArt,
-                    enabled = games.isNotEmpty() && !isScrapingBoxArt,
-                    colors = ButtonDefaults.buttonColors(
-                        containerColor = DarkSurfaceHighlight,
-                        disabledContainerColor = DarkSurfaceVariant
-                    ),
-                    shape = RoundedCornerShape(14.dp),
-                    contentPadding = PaddingValues(horizontal = 12.dp, vertical = 14.dp),
-                    modifier = Modifier.testTag("btn_scrape_all_box_art")
-                ) {
-                    if (isScrapingBoxArt) {
-                        CircularProgressIndicator(
-                            modifier = Modifier.size(16.dp),
-                            strokeWidth = 2.dp,
-                            color = EglantineCyan
-                        )
-                    } else {
-                        Icon(
-                            imageVector = Icons.Default.Image,
-                            contentDescription = "Scrape Box Art",
-                            tint = EglantineCyan,
-                            modifier = Modifier.size(18.dp)
-                        )
-                    }
-                    Spacer(Modifier.width(6.dp))
+            OutlinedTextField(
+                value = searchQuery,
+                onValueChange = onSearchChanged,
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .testTag("search_games_input"),
+                placeholder = {
                     Text(
-                        text = if (isScrapingBoxArt) "Scraping…" else "Box Art",
-                        color = EglantineCyan,
-                        fontSize = 12.sp,
-                        fontWeight = FontWeight.Bold
+                        "Search games…",
+                        color = TextSecondary,
+                        fontSize = 13.sp
                     )
-                }
-            }
+                },
+                leadingIcon = {
+                    Icon(
+                        imageVector = Icons.Default.Search,
+                        contentDescription = "Search",
+                        tint = GlowCyan
+                    )
+                },
+                singleLine = true,
+                colors = OutlinedTextFieldDefaults.colors(
+                    focusedBorderColor = Color.White.copy(alpha = 0.55f),
+                    unfocusedBorderColor = Color.White.copy(alpha = 0.25f),
+                    focusedContainerColor = Color(0x4010182B),
+                    unfocusedContainerColor = Color(0x3310182B),
+                    focusedTextColor = TextPrimary,
+                    unfocusedTextColor = TextPrimary
+                ),
+                shape = RoundedCornerShape(24.dp)
+            )
         }
 
-        // FILTER CHIPS ROW
+        // 3. MINIMAL GLASS FILTER PILLS
         item {
             LazyRow(
                 horizontalArrangement = Arrangement.spacedBy(8.dp),
@@ -248,8 +219,9 @@ fun GamesScreen(
             ) {
                 item {
                     GameFilterChip(
-                        label = "All Games (${games.size})",
+                        label = "All (${games.size})",
                         selected = currentFilter == GameFilter.ALL,
+                        badgeColor = GlowPink,
                         onClick = { onFilterChanged(GameFilter.ALL) }
                     )
                 }
@@ -257,15 +229,15 @@ fun GamesScreen(
                     GameFilterChip(
                         label = "Switch 1",
                         selected = currentFilter == GameFilter.SWITCH1,
-                        badgeColor = Color(0xFFFF5252),
+                        badgeColor = GlowCyan,
                         onClick = { onFilterChanged(GameFilter.SWITCH1) }
                     )
                 }
                 item {
                     GameFilterChip(
-                        label = "Switch 2 (NX2)",
+                        label = "Switch 2",
                         selected = currentFilter == GameFilter.NX2,
-                        badgeColor = EglantineMagenta,
+                        badgeColor = GlowPurple,
                         onClick = { onFilterChanged(GameFilter.NX2) }
                     )
                 }
@@ -273,7 +245,7 @@ fun GamesScreen(
                     GameFilterChip(
                         label = "Homebrew",
                         selected = currentFilter == GameFilter.HOMEBREW,
-                        badgeColor = EglantineCyan,
+                        badgeColor = GlowEmerald,
                         onClick = { onFilterChanged(GameFilter.HOMEBREW) }
                     )
                 }
@@ -281,14 +253,14 @@ fun GamesScreen(
                     GameFilterChip(
                         label = "Favorites",
                         selected = currentFilter == GameFilter.FAVORITES,
-                        badgeColor = Color(0xFFFFD54F),
+                        badgeColor = GlowAmber,
                         onClick = { onFilterChanged(GameFilter.FAVORITES) }
                     )
                 }
             }
         }
 
-        // GAMES LIST / EMPTY STATE (NO DEMO GAMES)
+        // 4. GAMES LIST OR GLASS EMPTY STATE
         if (games.isEmpty()) {
             item {
                 EmptyGamesCard(
@@ -327,7 +299,6 @@ fun GamesScreen(
         item { Spacer(modifier = Modifier.height(24.dp)) }
     }
 
-    // CUSTOM ROM ADD DIALOG (DIRECTLY FROM GAMES SCREEN)
     if (showCustomAddDialog) {
         CustomRomEntryDialog(
             onDismiss = { showCustomAddDialog = false },
@@ -342,7 +313,6 @@ fun GamesScreen(
         )
     }
 
-    // LAUNCH ERROR DIALOG
     launchError?.let { err ->
         LaunchErrorDialog(
             error = err,
@@ -358,7 +328,6 @@ fun GamesScreen(
         )
     }
 
-    // GAME DETAILS DIALOG
     selectedGameForDetails?.let { game ->
         GameDetailsDialog(
             game = game,
@@ -381,7 +350,6 @@ fun GamesScreen(
         )
     }
 
-    // RENAME GAME DIALOG
     gameToRename?.let { game ->
         RenameGameDialog(
             game = game,
@@ -397,126 +365,89 @@ fun GamesScreen(
 @Composable
 fun HeroBannerCard(
     activeDriver: VulkanDriver?,
+    isScrapingBoxArt: Boolean = false,
     onAddGame: () -> Unit,
     onScanFolder: () -> Unit,
-    onConfigure: () -> Unit
+    onScrapeBoxArt: () -> Unit = {}
 ) {
-    Card(
+    IosGlassSurface(
         modifier = Modifier
             .fillMaxWidth()
             .testTag("hero_banner_card"),
-        shape = RoundedCornerShape(20.dp),
-        colors = CardDefaults.cardColors(containerColor = DarkSurfaceVariant)
+        cornerRadius = 26.dp
     ) {
-        Box(modifier = Modifier.fillMaxWidth().height(178.dp)) {
-            Image(
-                painter = painterResource(id = R.drawable.banner_eglantine),
-                contentDescription = "Eglantine Console Banner",
-                contentScale = ContentScale.Crop,
-                modifier = Modifier.fillMaxSize()
-            )
-
-            Box(
-                modifier = Modifier
-                    .fillMaxSize()
-                    .background(
-                        Brush.verticalGradient(
-                            colors = listOf(Color(0x22000000), Color(0xF0100F17))
-                        )
-                    )
-            )
-
-            Column(
-                modifier = Modifier
-                    .fillMaxSize()
-                    .padding(16.dp),
-                verticalArrangement = Arrangement.SpaceBetween
+        Column(
+            modifier = Modifier
+                .fillMaxWidth()
+                .padding(16.dp),
+            verticalArrangement = Arrangement.spacedBy(12.dp)
+        ) {
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                horizontalArrangement = Arrangement.SpaceBetween,
+                verticalAlignment = Alignment.CenterVertically
             ) {
-                Row(
-                    modifier = Modifier.fillMaxWidth(),
-                    horizontalArrangement = Arrangement.SpaceBetween,
-                    verticalAlignment = Alignment.CenterVertically
-                ) {
-                    Row(
-                        verticalAlignment = Alignment.CenterVertically,
-                        horizontalArrangement = Arrangement.spacedBy(8.dp)
-                    ) {
-                        Box(
-                            modifier = Modifier
-                                .size(10.dp)
-                                .clip(RoundedCornerShape(5.dp))
-                                .background(AccentSuccess)
-                        )
-                        Text(
-                            text = "EGLANTINE • LICHII NX2",
-                            color = Color.White,
-                            fontWeight = FontWeight.ExtraBold,
-                            fontSize = 15.sp,
-                            letterSpacing = 1.sp
-                        )
-                    }
-
-                    Box(
-                        modifier = Modifier
-                            .clip(RoundedCornerShape(8.dp))
-                            .background(Color(0xCC1A1828))
-                            .border(1.dp, EglantineCyan, RoundedCornerShape(8.dp))
-                            .padding(horizontal = 8.dp, vertical = 4.dp)
-                    ) {
-                        Text(
-                            text = activeDriver?.name?.take(22) ?: "Mesa Turnip Vulkan",
-                            color = EglantineCyan,
-                            fontSize = 10.sp,
-                            fontWeight = FontWeight.Bold
-                        )
-                    }
+                Column {
+                    Text(
+                        text = "Game Library",
+                        color = TextPrimary,
+                        fontWeight = FontWeight.Bold,
+                        fontSize = 18.sp
+                    )
+                    Text(
+                        text = "Switch 1 & Switch 2 • Auto Box Art",
+                        color = TextSecondary,
+                        fontSize = 12.sp
+                    )
                 }
 
-                Row(
-                    modifier = Modifier.fillMaxWidth(),
-                    horizontalArrangement = Arrangement.SpaceBetween,
-                    verticalAlignment = Alignment.Bottom
+                Box(
+                    modifier = Modifier
+                        .clip(RoundedCornerShape(14.dp))
+                        .background(Color.White.copy(alpha = 0.14f))
+                        .border(1.dp, GlowCyan.copy(alpha = 0.6f), RoundedCornerShape(14.dp))
+                        .padding(horizontal = 10.dp, vertical = 5.dp)
                 ) {
-                    Column(modifier = Modifier.weight(1f)) {
-                        Text(
-                            text = "Switch 2 & Switch 1",
-                            color = TextPrimary,
-                            fontWeight = FontWeight.Bold,
-                            fontSize = 15.sp
-                        )
-                        Text(
-                            text = "Persistent Library • Auto Box Art Scraper",
-                            color = TextSecondary,
-                            fontSize = 11.sp
-                        )
-                    }
-
-                    Row(horizontalArrangement = Arrangement.spacedBy(6.dp)) {
-                        Button(
-                            onClick = onAddGame,
-                            colors = ButtonDefaults.buttonColors(containerColor = EglantineMagenta),
-                            shape = RoundedCornerShape(10.dp),
-                            contentPadding = PaddingValues(horizontal = 10.dp, vertical = 6.dp),
-                            modifier = Modifier.testTag("btn_hero_add_game")
-                        ) {
-                            Icon(Icons.Default.Add, contentDescription = null, modifier = Modifier.size(15.dp))
-                            Spacer(Modifier.width(4.dp))
-                            Text("Add ROM", fontSize = 11.5.sp, fontWeight = FontWeight.Bold)
-                        }
-
-                        Button(
-                            onClick = onScanFolder,
-                            colors = ButtonDefaults.buttonColors(containerColor = DarkSurfaceHighlight),
-                            shape = RoundedCornerShape(10.dp),
-                            contentPadding = PaddingValues(horizontal = 10.dp, vertical = 6.dp),
-                            modifier = Modifier.testTag("btn_hero_scan_folder")
-                        ) {
-                            Icon(Icons.Default.FolderOpen, contentDescription = null, modifier = Modifier.size(15.dp), tint = EglantineCyan)
-                            Spacer(Modifier.width(4.dp))
-                            Text("Folder", fontSize = 11.5.sp, color = TextPrimary)
-                        }
-                    }
+                    Text(
+                        text = activeDriver?.name?.take(18) ?: "Mesa Turnip",
+                        color = GlowCyan,
+                        fontSize = 10.5.sp,
+                        fontWeight = FontWeight.Bold
+                    )
                 }
+            }
+
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                horizontalArrangement = Arrangement.spacedBy(8.dp)
+            ) {
+                GlassActionPill(
+                    label = "Add ROM",
+                    icon = Icons.Default.Add,
+                    glowColor = GlowPink,
+                    onClick = onAddGame,
+                    modifier = Modifier
+                        .weight(1f)
+                        .testTag("btn_hero_add_game")
+                )
+                GlassActionPill(
+                    label = "Folder",
+                    icon = Icons.Default.FolderOpen,
+                    glowColor = GlowCyan,
+                    onClick = onScanFolder,
+                    modifier = Modifier
+                        .weight(1f)
+                        .testTag("btn_hero_scan_folder")
+                )
+                GlassActionPill(
+                    label = if (isScrapingBoxArt) "Scraping…" else "Box Art",
+                    icon = Icons.Default.Image,
+                    glowColor = GlowAmber,
+                    onClick = onScrapeBoxArt,
+                    modifier = Modifier
+                        .weight(1f)
+                        .testTag("btn_scrape_all_box_art")
+                )
             }
         }
     }
@@ -526,7 +457,7 @@ fun HeroBannerCard(
 fun GameFilterChip(
     label: String,
     selected: Boolean,
-    badgeColor: Color = EglantineMagenta,
+    badgeColor: Color = GlowPink,
     onClick: () -> Unit
 ) {
     FilterChip(
@@ -536,23 +467,23 @@ fun GameFilterChip(
             Text(
                 text = label,
                 fontSize = 12.sp,
-                fontWeight = if (selected) FontWeight.Bold else FontWeight.Normal
+                fontWeight = if (selected) FontWeight.Bold else FontWeight.Medium
             )
         },
         colors = FilterChipDefaults.filterChipColors(
-            selectedContainerColor = badgeColor.copy(alpha = 0.25f),
+            selectedContainerColor = badgeColor.copy(alpha = 0.28f),
             selectedLabelColor = Color.White,
-            containerColor = DarkSurfaceVariant,
+            containerColor = Color(0x3310182B),
             labelColor = TextSecondary
         ),
         border = FilterChipDefaults.filterChipBorder(
             enabled = true,
             selected = selected,
-            borderColor = Color(0x33FFFFFF),
+            borderColor = Color.White.copy(alpha = 0.22f),
             selectedBorderColor = badgeColor,
             borderWidth = 1.dp
         ),
-        shape = RoundedCornerShape(10.dp)
+        shape = RoundedCornerShape(18.dp)
     )
 }
 
@@ -568,17 +499,13 @@ fun GameCardItem(
 ) {
     var showMenu by remember { mutableStateOf(false) }
 
-    Card(
+    IosGlassSurface(
         modifier = Modifier
             .fillMaxWidth()
-            .testTag("game_card_${game.programId}")
-            .clickable { onPlay() },
-        shape = RoundedCornerShape(16.dp),
-        colors = CardDefaults.cardColors(containerColor = DarkSurfaceVariant),
-        border = androidx.compose.foundation.BorderStroke(
-            1.dp,
-            if (game.isNx2) Color(0x66E040FB) else Color(0x33FFFFFF)
-        )
+            .testTag("game_card_${game.programId}"),
+        cornerRadius = 24.dp,
+        accentGlowColor = if (game.isNx2) GlowPurple else GlowCyan,
+        onClick = onPlay
     ) {
         Row(
             modifier = Modifier
@@ -586,80 +513,48 @@ fun GameCardItem(
                 .padding(12.dp),
             verticalAlignment = Alignment.CenterVertically
         ) {
-            // Scraped Box Art Cover (Vertical Switch Case Aspect Ratio)
             GameBoxArtThumbnail(
                 title = game.title,
                 boxArtUrl = game.boxArtUrl,
                 isNx2 = game.isNx2,
                 modifier = Modifier
-                    .width(62.dp)
-                    .height(86.dp)
+                    .width(58.dp)
+                    .height(80.dp)
             )
 
             Spacer(modifier = Modifier.width(12.dp))
 
-            // Details
             Column(
-                modifier = Modifier.weight(1f)
+                modifier = Modifier.weight(1f),
+                verticalArrangement = Arrangement.spacedBy(4.dp)
             ) {
                 Row(
                     verticalAlignment = Alignment.CenterVertically,
-                    horizontalArrangement = Arrangement.spacedBy(5.dp)
+                    horizontalArrangement = Arrangement.spacedBy(6.dp)
                 ) {
-                    if (game.isNx2) {
-                        Box(
-                            modifier = Modifier
-                                .clip(RoundedCornerShape(4.dp))
-                                .background(EglantineMagenta)
-                                .padding(horizontal = 5.dp, vertical = 2.dp)
-                        ) {
-                            Text("SWITCH 2", color = Color.Black, fontSize = 8.5.sp, fontWeight = FontWeight.ExtraBold)
-                        }
-                    } else if (game.isHomebrew) {
-                        Box(
-                            modifier = Modifier
-                                .clip(RoundedCornerShape(4.dp))
-                                .background(EglantineCyan)
-                                .padding(horizontal = 5.dp, vertical = 2.dp)
-                        ) {
-                            Text("HOMEBREW", color = Color.Black, fontSize = 8.5.sp, fontWeight = FontWeight.Bold)
-                        }
-                    } else {
-                        Box(
-                            modifier = Modifier
-                                .clip(RoundedCornerShape(4.dp))
-                                .background(Color(0xFFE53935))
-                                .padding(horizontal = 5.dp, vertical = 2.dp)
-                        ) {
-                            Text("SWITCH 1", color = Color.White, fontSize = 8.5.sp, fontWeight = FontWeight.Bold)
-                        }
-                    }
-
+                    val badgeGlow = if (game.isNx2) GlowPurple else if (game.isHomebrew) GlowEmerald else GlowPink
                     Box(
                         modifier = Modifier
-                            .clip(RoundedCornerShape(4.dp))
-                            .background(Color(0x3300E5FF))
-                            .padding(horizontal = 5.dp, vertical = 2.dp)
-                    ) {
-                        Text("SAVED ROM", color = EglantineCyan, fontSize = 8.5.sp, fontWeight = FontWeight.Bold)
-                    }
-
-                    Box(
-                        modifier = Modifier
-                            .clip(RoundedCornerShape(4.dp))
-                            .background(DarkSurfaceHighlight)
-                            .padding(horizontal = 4.dp, vertical = 2.dp)
+                            .clip(RoundedCornerShape(8.dp))
+                            .background(badgeGlow.copy(alpha = 0.28f))
+                            .border(1.dp, badgeGlow.copy(alpha = 0.7f), RoundedCornerShape(8.dp))
+                            .padding(horizontal = 6.dp, vertical = 2.dp)
                     ) {
                         Text(
-                            text = ".${game.fileExtension.uppercase()}",
-                            color = Color(0xFFFFD54F),
-                            fontSize = 8.5.sp,
+                            text = if (game.isNx2) "SWITCH 2" else if (game.isHomebrew) "HOMEBREW" else "SWITCH",
+                            color = Color.White,
+                            fontSize = 9.sp,
                             fontWeight = FontWeight.Bold
                         )
                     }
-                }
 
-                Spacer(modifier = Modifier.height(5.dp))
+                    Text(
+                        text = ".${game.fileExtension.uppercase()}",
+                        color = GlowAmber,
+                        fontSize = 10.sp,
+                        fontWeight = FontWeight.SemiBold
+                    )
+                }
 
                 Text(
                     text = game.title,
@@ -671,22 +566,14 @@ fun GameCardItem(
                 )
 
                 Text(
-                    text = "${game.developer} • ID: ${game.programId.take(12)}…",
+                    text = "${game.developer} • ${game.sizeMb} MB",
                     color = TextSecondary,
-                    fontSize = 11.sp,
+                    fontSize = 11.5.sp,
                     maxLines = 1,
                     overflow = TextOverflow.Ellipsis
                 )
-
-                Text(
-                    text = "${game.sizeMb} MB • Played: ${game.lastPlayedTime}",
-                    color = if (game.boxArtUrl != null) AccentSuccess else TextSecondary,
-                    fontSize = 10.sp,
-                    maxLines = 1
-                )
             }
 
-            // Actions: Favorite, 3-dots Menu, Play
             IconButton(
                 onClick = onToggleFavorite,
                 modifier = Modifier
@@ -696,7 +583,7 @@ fun GameCardItem(
                 Icon(
                     imageVector = if (game.isFavorite) Icons.Default.Favorite else Icons.Default.FavoriteBorder,
                     contentDescription = "Favorite",
-                    tint = if (game.isFavorite) Color(0xFFFF4081) else TextSecondary,
+                    tint = if (game.isFavorite) GlowPink else TextSecondary,
                     modifier = Modifier.size(18.dp)
                 )
             }
@@ -719,7 +606,7 @@ fun GameCardItem(
                 DropdownMenu(
                     expanded = showMenu,
                     onDismissRequest = { showMenu = false },
-                    modifier = Modifier.background(DarkSurfaceVariant)
+                    modifier = Modifier.background(DarkSurface)
                 ) {
                     DropdownMenuItem(
                         text = { Text("Launch Game", color = TextPrimary) },
@@ -727,15 +614,15 @@ fun GameCardItem(
                             showMenu = false
                             onPlay()
                         },
-                        leadingIcon = { Icon(Icons.Default.PlayArrow, contentDescription = null, tint = EglantineMagenta) }
+                        leadingIcon = { Icon(Icons.Default.PlayArrow, contentDescription = null, tint = GlowPink) }
                     )
                     DropdownMenuItem(
-                        text = { Text("Scrape / Refresh Box Art", color = TextPrimary) },
+                        text = { Text("Refresh Box Art", color = TextPrimary) },
                         onClick = {
                             showMenu = false
                             onScrapeBoxArt()
                         },
-                        leadingIcon = { Icon(Icons.Default.Image, contentDescription = null, tint = EglantineCyan) }
+                        leadingIcon = { Icon(Icons.Default.Image, contentDescription = null, tint = GlowCyan) }
                     )
                     DropdownMenuItem(
                         text = { Text("Rename Title", color = TextPrimary) },
@@ -743,7 +630,7 @@ fun GameCardItem(
                             showMenu = false
                             onRename()
                         },
-                        leadingIcon = { Icon(Icons.Default.Edit, contentDescription = null, tint = EglantineCyan) }
+                        leadingIcon = { Icon(Icons.Default.Edit, contentDescription = null, tint = GlowAmber) }
                     )
                     DropdownMenuItem(
                         text = { Text("Game Details", color = TextPrimary) },
@@ -754,7 +641,7 @@ fun GameCardItem(
                         leadingIcon = { Icon(Icons.Default.Info, contentDescription = null, tint = TextPrimary) }
                     )
                     DropdownMenuItem(
-                        text = { Text("Remove from Library", color = Color(0xFFFF5252)) },
+                        text = { Text("Remove", color = Color(0xFFFF5252)) },
                         onClick = {
                             showMenu = false
                             onRemove()
@@ -768,18 +655,16 @@ fun GameCardItem(
 
             Box(
                 modifier = Modifier
-                    .size(40.dp)
-                    .clip(RoundedCornerShape(12.dp))
-                    .background(EglantineMagenta)
                     .clickable { onPlay() }
-                    .testTag("play_btn_${game.programId}"),
-                contentAlignment = Alignment.Center
+                    .testTag("play_btn_${game.programId}")
             ) {
-                Icon(
-                    imageVector = Icons.Default.PlayArrow,
+                GlowingGlassIcon(
+                    icon = Icons.Default.PlayArrow,
                     contentDescription = "Play Game",
-                    tint = Color.Black,
-                    modifier = Modifier.size(22.dp)
+                    glowColor = GlowEmerald,
+                    isSelected = true,
+                    size = 40.dp,
+                    iconSize = 22.dp
                 )
             }
         }
@@ -793,17 +678,17 @@ fun GameBoxArtThumbnail(
     isNx2: Boolean,
     modifier: Modifier = Modifier
 ) {
-    val spineColor = if (isNx2) EglantineMagenta else Color(0xFFE53935)
+    val spineColor = if (isNx2) GlowPurple else GlowPink
     Box(
         modifier = modifier
-            .clip(RoundedCornerShape(10.dp))
+            .clip(RoundedCornerShape(14.dp))
             .background(
                 Brush.verticalGradient(
                     if (isNx2) listOf(Color(0xFF311B92), Color(0xFF880E4F))
                     else listOf(Color(0xFFB71C1C), Color(0xFF1A1829))
                 )
             )
-            .border(1.dp, spineColor.copy(alpha = 0.7f), RoundedCornerShape(10.dp)),
+            .border(1.dp, Color.White.copy(alpha = 0.35f), RoundedCornerShape(14.dp)),
         contentAlignment = Alignment.Center
     ) {
         if (!boxArtUrl.isNullOrBlank()) {
@@ -813,22 +698,21 @@ fun GameBoxArtThumbnail(
                 contentScale = ContentScale.Crop,
                 modifier = Modifier.fillMaxSize(),
                 loading = {
-                    FallbackBoxArtContent(title = title, isNx2 = isNx2)
+                    FallbackBoxArtContent(title = title)
                 },
                 error = {
-                    FallbackBoxArtContent(title = title, isNx2 = isNx2)
+                    FallbackBoxArtContent(title = title)
                 }
             )
         } else {
-            FallbackBoxArtContent(title = title, isNx2 = isNx2)
+            FallbackBoxArtContent(title = title)
         }
 
-        // Top Switch header strip
         Box(
             modifier = Modifier
                 .fillMaxWidth()
                 .align(Alignment.TopCenter)
-                .background(spineColor.copy(alpha = 0.88f))
+                .background(spineColor.copy(alpha = 0.85f))
                 .padding(vertical = 1.5.dp),
             contentAlignment = Alignment.Center
         ) {
@@ -845,8 +729,7 @@ fun GameBoxArtThumbnail(
 
 @Composable
 private fun FallbackBoxArtContent(
-    title: String,
-    isNx2: Boolean
+    title: String
 ) {
     Column(
         modifier = Modifier
@@ -859,7 +742,7 @@ private fun FallbackBoxArtContent(
             imageVector = Icons.Default.SportsEsports,
             contentDescription = null,
             tint = Color.White.copy(alpha = 0.85f),
-            modifier = Modifier.size(22.dp)
+            modifier = Modifier.size(20.dp)
         )
         Text(
             text = title,
@@ -871,6 +754,100 @@ private fun FallbackBoxArtContent(
             lineHeight = 9.5.sp,
             overflow = TextOverflow.Ellipsis
         )
+    }
+}
+
+@Composable
+fun EmptyGamesCard(
+    onPickRomFile: () -> Unit,
+    onScanRomFolder: () -> Unit,
+    onAddCustomEntry: () -> Unit,
+    onSetup: () -> Unit
+) {
+    IosGlassSurface(
+        modifier = Modifier
+            .fillMaxWidth()
+            .padding(vertical = 10.dp)
+            .testTag("empty_library_card"),
+        cornerRadius = 28.dp
+    ) {
+        Column(
+            modifier = Modifier
+                .fillMaxWidth()
+                .padding(24.dp),
+            horizontalAlignment = Alignment.CenterHorizontally,
+            verticalArrangement = Arrangement.spacedBy(14.dp)
+        ) {
+            GlowingGlassIcon(
+                icon = Icons.Default.SportsEsports,
+                contentDescription = null,
+                glowColor = GlowPink,
+                isSelected = true,
+                size = 56.dp,
+                iconSize = 28.dp
+            )
+
+            Text(
+                text = "Ready to Play",
+                color = TextPrimary,
+                fontSize = 20.sp,
+                fontWeight = FontWeight.Bold
+            )
+
+            Text(
+                text = "Add your Switch (.nsp, .xci, .nro) or Switch 2 games. Your library and box art are saved automatically.",
+                color = TextSecondary,
+                fontSize = 13.sp,
+                textAlign = TextAlign.Center,
+                lineHeight = 18.sp
+            )
+
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                horizontalArrangement = Arrangement.spacedBy(10.dp)
+            ) {
+                GlassActionPill(
+                    label = "Add ROM File",
+                    icon = Icons.Default.Add,
+                    glowColor = GlowPink,
+                    onClick = onPickRomFile,
+                    modifier = Modifier
+                        .weight(1f)
+                        .testTag("btn_empty_pick_rom")
+                )
+                GlassActionPill(
+                    label = "Scan Folder",
+                    icon = Icons.Default.FolderOpen,
+                    glowColor = GlowCyan,
+                    onClick = onScanRomFolder,
+                    modifier = Modifier
+                        .weight(1f)
+                        .testTag("btn_empty_scan_folder")
+                )
+            }
+
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                horizontalArrangement = Arrangement.spacedBy(10.dp)
+            ) {
+                GlassActionPill(
+                    label = "Quick Add",
+                    icon = Icons.Default.CreateNewFolder,
+                    glowColor = GlowEmerald,
+                    onClick = onAddCustomEntry,
+                    modifier = Modifier
+                        .weight(1f)
+                        .testTag("btn_empty_custom_entry")
+                )
+                GlassActionPill(
+                    label = "Keys & Setup",
+                    icon = Icons.Default.Security,
+                    glowColor = GlowAmber,
+                    onClick = onSetup,
+                    modifier = Modifier.weight(1f)
+                )
+            }
+        }
     }
 }
 
@@ -910,7 +887,7 @@ fun LaunchErrorDialog(
 
                 Card(
                     colors = CardDefaults.cardColors(containerColor = DarkSurfaceHighlight),
-                    shape = RoundedCornerShape(8.dp),
+                    shape = RoundedCornerShape(12.dp),
                     modifier = Modifier.fillMaxWidth()
                 ) {
                     Column(modifier = Modifier.padding(10.dp), verticalArrangement = Arrangement.spacedBy(4.dp)) {
@@ -934,7 +911,7 @@ fun LaunchErrorDialog(
             Button(
                 onClick = onOpenSetup,
                 colors = ButtonDefaults.buttonColors(containerColor = EglantineMagenta),
-                shape = RoundedCornerShape(8.dp)
+                shape = RoundedCornerShape(12.dp)
             ) {
                 Text("Open Setup (Install Keys)")
             }
@@ -944,9 +921,9 @@ fun LaunchErrorDialog(
                 if (error.canBypassWithSampleKeys) {
                     OutlinedButton(
                         onClick = onBypassWithSampleKeys,
-                        border = androidx.compose.foundation.BorderStroke(1.dp, EglantineCyan),
+                        border = BorderStroke(1.dp, EglantineCyan),
                         colors = ButtonDefaults.outlinedButtonColors(contentColor = EglantineCyan),
-                        shape = RoundedCornerShape(8.dp)
+                        shape = RoundedCornerShape(12.dp)
                     ) {
                         Text("Load Keys & Play", fontSize = 11.sp)
                     }
@@ -1013,90 +990,6 @@ fun RenameGameDialog(
 }
 
 @Composable
-fun EmptyGamesCard(
-    onPickRomFile: () -> Unit,
-    onScanRomFolder: () -> Unit,
-    onAddCustomEntry: () -> Unit,
-    onSetup: () -> Unit
-) {
-    Card(
-        modifier = Modifier
-            .fillMaxWidth()
-            .padding(vertical = 18.dp)
-            .testTag("empty_library_card"),
-        shape = RoundedCornerShape(18.dp),
-        colors = CardDefaults.cardColors(containerColor = DarkSurfaceVariant),
-        border = androidx.compose.foundation.BorderStroke(1.dp, Color(0x44E040FB))
-    ) {
-        Column(
-            modifier = Modifier
-                .fillMaxWidth()
-                .padding(24.dp),
-            horizontalAlignment = Alignment.CenterHorizontally,
-            verticalArrangement = Arrangement.spacedBy(12.dp)
-        ) {
-            Icon(
-                imageVector = Icons.Default.SportsEsports,
-                contentDescription = null,
-                tint = EglantineMagenta,
-                modifier = Modifier.size(48.dp)
-            )
-            Text(
-                text = "Your Game Library is Ready",
-                color = TextPrimary,
-                fontSize = 17.sp,
-                fontWeight = FontWeight.Bold
-            )
-            Text(
-                text = "Add your Nintendo Switch (.nsp, .xci, .nro) or Switch 2 (NX2) games. Eglantine automatically remembers all added games across app restarts and scrapes official box art.",
-                color = TextSecondary,
-                fontSize = 12.sp,
-                textAlign = TextAlign.Center,
-                lineHeight = 17.sp
-            )
-            Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                Button(
-                    onClick = onPickRomFile,
-                    colors = ButtonDefaults.buttonColors(containerColor = EglantineMagenta),
-                    shape = RoundedCornerShape(10.dp),
-                    modifier = Modifier.testTag("btn_empty_pick_rom")
-                ) {
-                    Icon(Icons.Default.Add, contentDescription = null, modifier = Modifier.size(16.dp))
-                    Spacer(Modifier.width(4.dp))
-                    Text("Add ROM File", fontWeight = FontWeight.Bold)
-                }
-                Button(
-                    onClick = onScanRomFolder,
-                    colors = ButtonDefaults.buttonColors(containerColor = EglantineCyan),
-                    shape = RoundedCornerShape(10.dp),
-                    modifier = Modifier.testTag("btn_empty_scan_folder")
-                ) {
-                    Icon(Icons.Default.FolderOpen, contentDescription = null, tint = Color.Black, modifier = Modifier.size(16.dp))
-                    Spacer(Modifier.width(4.dp))
-                    Text("Scan ROM Folder", color = Color.Black, fontWeight = FontWeight.Bold)
-                }
-            }
-            Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                OutlinedButton(
-                    onClick = onAddCustomEntry,
-                    border = androidx.compose.foundation.BorderStroke(1.dp, EglantineMagenta),
-                    colors = ButtonDefaults.outlinedButtonColors(contentColor = EglantineMagenta),
-                    shape = RoundedCornerShape(10.dp),
-                    modifier = Modifier.testTag("btn_empty_custom_entry")
-                ) {
-                    Icon(Icons.Default.CreateNewFolder, contentDescription = null, modifier = Modifier.size(15.dp))
-                    Spacer(Modifier.width(4.dp))
-                    Text("Quick Add by Title", fontSize = 12.sp)
-                }
-                TextButton(onClick = onSetup) {
-                    Text("Keys & Firmware Setup", color = EglantineCyan, fontSize = 12.sp)
-                }
-            }
-        }
-    }
-}
-
-@Composable
 fun GameDetailsDialog(
     game: Game,
     onDismiss: () -> Unit,
@@ -1135,7 +1028,7 @@ fun GameDetailsDialog(
                         OutlinedButton(
                             onClick = onScrapeBoxArt,
                             contentPadding = PaddingValues(horizontal = 8.dp, vertical = 2.dp),
-                            border = androidx.compose.foundation.BorderStroke(1.dp, EglantineCyan),
+                            border = BorderStroke(1.dp, EglantineCyan),
                             colors = ButtonDefaults.outlinedButtonColors(contentColor = EglantineCyan),
                             modifier = Modifier.height(28.dp)
                         ) {
@@ -1153,11 +1046,10 @@ fun GameDetailsDialog(
                 )
                 Text("Location: ${game.path}", color = TextSecondary, fontSize = 10.sp, maxLines = 2, overflow = TextOverflow.Ellipsis)
 
-                // Recommended AAA Backend Configuration
                 Box(
                     modifier = Modifier
                         .fillMaxWidth()
-                        .clip(RoundedCornerShape(8.dp))
+                        .clip(RoundedCornerShape(10.dp))
                         .background(DarkSurfaceHighlight)
                         .padding(horizontal = 10.dp, vertical = 6.dp)
                 ) {
